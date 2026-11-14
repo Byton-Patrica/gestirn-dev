@@ -53,8 +53,8 @@
 __history/
 *.~*
 
-# Gestirn dev preview build output
-GestirnDevPreview/bin/
-GestirnDevPreview/obj/
+# Gestirn dev build output
+GestirnDev/bin/
+GestirnDev/obj/
 dist/
 

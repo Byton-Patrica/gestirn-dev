@@ -1,17 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- Gestirn dev targets .NET Framework 4.8 (part of Windows), so the app is a single small exe.
+       build.ps1 compiles the same sources with the Roslyn csc from Visual Studio Build Tools. -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net48</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
     <ApplicationIcon>GestirnEra-datarot.ico</ApplicationIcon>
     <AssemblyName>Gestirn-dev</AssemblyName>
-    <RootNamespace>GestirnDevPreview</RootNamespace>
+    <RootNamespace>GestirnDev</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Microsoft.VisualBasic" />
     <Content Include="GestirnEra-datarot.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\Assets\Branding\GestirnEra-datarot-256.png" Link="GestirnEra-datarot-256.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
-
