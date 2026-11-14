@@ -1,5 +1,7 @@
 # Gestirn dev
 
+<p align="center"><img src="Assets/Branding/GestirnEra-datarot-256.png" width="128" alt="GestirnEra DataRot icon watermark"></p>
+
 Gestirn dev is a modernisation project built from the Bloodshed/Orwell
 Dev-C++ source code. The goal is to keep Dev-C++ lightweight while adding the
 workflow features that current C/C++ developers expect.
@@ -23,14 +25,16 @@ integrations are planned for later releases.
 ## Download
 
 The Windows download page is the [v0.1.0 GitHub Release](https://github.com/Byton-Patrica/gestirn-dev/releases/tag/v0.1.0).
-The repository currently contains the source release; a compiled Windows
-executable will be attached after the legacy Delphi project is built with a
-compatible Delphi 6/7 toolchain.
+The release includes a standalone Windows preview executable. It provides the
+Gestirn dev editor surface, Ctrl+Space code hints and the embedded terminal.
+The original Delphi source remains the long-term IDE core and still requires a
+compatible Delphi 6/7 toolchain for its full native build.
 
 ## Branding
 
-The GestirnEra DataRot icon set is kept under `Assets/Branding/`. The `.ico`
-asset is also wired into the application and file-association icon paths so
+The GestirnEra DataRot icon is used as the README watermark. The `.ico` asset
+is kept under `Assets/Branding/` and is wired into the application and
+file-association icon paths so
 the same identity is used by the executable, shortcuts and source files.
 
 ## Source and license
@@ -46,9 +50,13 @@ describe building with Delphi 6 or Delphi 7 and the bundled VCL packages.
 Open the project in a compatible Delphi environment, make sure the SynEdit and
 ClassBrowsing source paths are available, and build the `devcpp` project.
 
+The standalone preview can be built with the Visual Studio C# compiler using
+the files under `GestirnDevPreview/`.
+
 ## Direction after 0.1
 
 The next milestones will add Clangd/LSP-based semantic completion, CMake and
 Ninja project support, modern compiler profiles, Git integration, and a
 persistent terminal session suitable for long-running AI agents.
+
 
