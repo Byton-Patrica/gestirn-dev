@@ -52,3 +52,9 @@
 # Delphi history and backups
 __history/
 *.~*
+
+# Gestirn dev preview build output
+GestirnDevPreview/bin/
+GestirnDevPreview/obj/
+dist/
+
