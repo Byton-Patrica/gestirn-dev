@@ -25,6 +25,7 @@ integrations are planned for later releases.
 ## Download
 
 The Windows download page is the [v0.1.0 GitHub Release](https://github.com/Byton-Patrica/gestirn-dev/releases/tag/v0.1.0).
+[Download the Windows preview package](https://github.com/Byton-Patrica/gestirn-dev/releases/download/v0.1.0/Gestirn-dev-0.1.0-preview.zip).
 The release includes a standalone Windows preview executable. It provides the
 Gestirn dev editor surface, Ctrl+Space code hints and the embedded terminal.
 The original Delphi source remains the long-term IDE core and still requires a
