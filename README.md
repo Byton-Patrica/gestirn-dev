@@ -6,6 +6,30 @@ Gestirn dev is a modernisation project built from the Bloodshed/Orwell
 Dev-C++ source code. The goal is to keep Dev-C++ lightweight while adding the
 workflow features that current C/C++ developers expect.
 
+## 0.12
+
+0.12 turns the Windows editor into a working C/C++ environment:
+
+- **Compile and run**: **F9** compiles the current file with g++ and runs it in
+  its own console window; **F11** compiles only; **Ctrl+F2** stops the build and
+  any running program. Unsaved files are saved first.
+- **Compiler detection**: the bundled MinGW64 of Dev-C++ is found
+  automatically, along with g++ on `PATH` and MSYS2. Pick another compiler,
+  the C++ standard and extra flags under **Build → Build Options**.
+- **Errors you can click**: diagnostics appear in the output panel in colour;
+  double-click a line such as `main.cpp:12:5: error:` to jump to that spot.
+- **Editing**: several tabs with unsaved-change markers, line numbers, syntax
+  colouring, Enter keeps indentation (and indents after `{`), **Ctrl+F** find
+  with **F3** for next, and **Ctrl+Space** code hints.
+- **Projects**: **File → Open Folder** shows the folder in the workspace tree;
+  double-click a file to open it. The last folder is remembered.
+- **Shell**: the output panel's command box runs any `cmd` command in the
+  current folder.
+
+Limits in this release: each build compiles a single source file (there are no
+project files or Makefiles yet), and the program's console is separate from the
+editor, so input and output go to that console window.
+
 ## 0.11
 
 The first release focuses on two visible improvements:
@@ -24,10 +48,10 @@ integrations are planned for later releases.
 
 ## Download
 
-The Windows download page is the [v0.11 GitHub Release](https://github.com/Byton-Patrica/gestirn-dev/releases/tag/v0.11).
-[Download the Windows preview package](https://github.com/Byton-Patrica/gestirn-dev/releases/download/v0.11/Gestirn-dev-0.11-preview.zip).
-The release includes a standalone Windows preview executable. It provides the
-Gestirn dev editor surface, Ctrl+Space code hints and the embedded terminal.
+The [v0.11 GitHub Release](https://github.com/Byton-Patrica/gestirn-dev/releases/tag/v0.11)
+is the last published Windows package. The 0.12 Windows editor (`Gestirn-dev.exe`)
+is built from `GestirnDevPreview/` as described below; it needs a g++ toolchain
+such as the one bundled with Dev-C++ 5.11.
 The original Delphi source remains the long-term IDE core and still requires a
 compatible Delphi 6/7 toolchain for its full native build.
 
@@ -51,10 +75,14 @@ describe building with Delphi 6 or Delphi 7 and the bundled VCL packages.
 Open the project in a compatible Delphi environment, make sure the SynEdit and
 ClassBrowsing source paths are available, and build the `devcpp` project.
 
-The standalone preview can be built with the Visual Studio C# compiler using
-the files under `GestirnDevPreview/`.
+The Windows editor can be built with the C# compiler (csc.exe, for example the
+one in Visual Studio Build Tools) from the files under `GestirnDevPreview/`:
 
-## Direction after 0.11
+```bash
+csc -target:winexe -win32icon:GestirnDevPreview/GestirnEra-datarot.ico -out:Gestirn-dev.exe -r:System.dll -r:System.Core.dll -r:System.Drawing.dll -r:System.Windows.Forms.dll GestirnDevPreview/*.cs
+```
+
+## Direction after 0.12
 
 The next milestones will add Clangd/LSP-based semantic completion, CMake and
 Ninja project support, modern compiler profiles, Git integration, and a

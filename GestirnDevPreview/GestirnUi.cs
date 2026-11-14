@@ -24,6 +24,14 @@ internal static class Theme
     public static readonly Color Lime = Color.FromArgb(196, 242, 58);
     public static readonly Color Ink = Color.FromArgb(12, 12, 14);
     public static readonly Color Disabled = Color.FromArgb(88, 86, 80);
+    public static readonly Color Red = Color.FromArgb(255, 107, 107);
+    public static readonly Color Gold = Color.FromArgb(245, 179, 53);
+    public static readonly Color EditorText = Color.FromArgb(230, 227, 218);
+    public static readonly Color Comment = Color.FromArgb(112, 110, 104);
+    public static readonly Color StringText = Color.FromArgb(196, 242, 58);
+    public static readonly Color Number = Color.FromArgb(245, 179, 53);
+    public static readonly Color Preprocessor = Color.FromArgb(201, 160, 255);
+    public static readonly Color Keyword = Color.FromArgb(255, 122, 46);
 
     public static readonly Font UiFont = new Font("Segoe UI", 9.5f);
     public static readonly Font UiSemi = new Font("Segoe UI Semibold", 9.5f);
@@ -68,6 +76,7 @@ internal static class Glyphs
         { "run", new[] { "#....", "##...", "###..", "##...", "#...." } },
         { "term", new[] { "#....", ".#...", "..#..", ".....", "#####" } },
         { "stop", new[] { ".....", ".###.", ".###.", ".###.", "....." } },
+        { "build", new[] { "..#..", ".###.", "#####", ".###.", "..#.." } },
     };
 
     public static void Draw(Graphics g, string name, Point origin, Color color)
