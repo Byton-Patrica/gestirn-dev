@@ -30,7 +30,7 @@ public sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gestirn dev 0.1.0";
+        Text = "Gestirn dev 0.11";
         Icon = LoadIcon();
         Width = 1360; Height = 820; MinimumSize = new Size(980, 620);
         StartPosition = FormStartPosition.CenterScreen; BackColor = background; ForeColor = text;
@@ -60,7 +60,7 @@ public sealed class MainForm : Form
         var run = new ToolStripMenuItem("Run");
         run.DropDownItems.Add("Run command...", null, (_, _) => commandBox.Focus());
         var help = new ToolStripMenuItem("Help");
-        help.DropDownItems.Add("About Gestirn dev", null, (_, _) => MessageBox.Show("Gestirn dev 0.1.0\nA modern C/C++ workspace built from the Dev-C++ source line.", "About", MessageBoxButtons.OK, MessageBoxIcon.Information));
+        help.DropDownItems.Add("About Gestirn dev", null, (_, _) => MessageBox.Show("Gestirn dev 0.11\nA modern C/C++ workspace built from the Dev-C++ source line.", "About", MessageBoxButtons.OK, MessageBoxIcon.Information));
         menu.Items.Add(file); menu.Items.Add(edit); menu.Items.Add(view); menu.Items.Add(run); menu.Items.Add(help);
         MainMenuStrip = menu; Controls.Add(menu);
     }
@@ -80,7 +80,7 @@ public sealed class MainForm : Form
         var body = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 250, BackColor = background };
         body.Panel1.BackColor = panel; body.Panel2.BackColor = background;
         BuildProjectPanel(body.Panel1); BuildEditorPanel(body.Panel2); Controls.Add(body);
-        statusLabel.Text = "Ready  •  Gestirn dev 0.1.0  •  C++ workspace";
+        statusLabel.Text = "Ready  •  Gestirn dev 0.11  •  C++ workspace";
         statusLabel.Dock = DockStyle.Bottom; statusLabel.Height = 24; statusLabel.Padding = new Padding(10, 4, 0, 0);
         statusLabel.BackColor = Color.FromArgb(38, 45, 58); statusLabel.ForeColor = Color.FromArgb(190, 205, 230); Controls.Add(statusLabel);
     }
@@ -177,4 +177,5 @@ internal sealed class DarkMenuColors : ProfessionalColorTable
     public override Color ImageMarginGradientEnd { get { return Color.FromArgb(42, 43, 50); } }
 }
 }
+
 

@@ -6,7 +6,7 @@ Gestirn dev is a modernisation project built from the Bloodshed/Orwell
 Dev-C++ source code. The goal is to keep Dev-C++ lightweight while adding the
 workflow features that current C/C++ developers expect.
 
-## 0.1.0
+## 0.11
 
 The first release focuses on two visible improvements:
 
@@ -18,14 +18,14 @@ The first release focuses on two visible improvements:
   back into the terminal window, and can invoke Git, build tools, scripts or a
   local AI agent.
 
-The terminal is intentionally small in 0.1. It runs one command per process;
+The terminal currently runs one command per process;
 persistent interactive shell sessions, terminal profiles and agent-specific
 integrations are planned for later releases.
 
 ## Download
 
-The Windows download page is the [v0.1.0 GitHub Release](https://github.com/Byton-Patrica/gestirn-dev/releases/tag/v0.1.0).
-[Download the Windows preview package](https://github.com/Byton-Patrica/gestirn-dev/releases/download/v0.1.0/Gestirn-dev-0.1.0-preview.zip).
+The Windows download page is the [v0.11 GitHub Release](https://github.com/Byton-Patrica/gestirn-dev/releases/tag/v0.11).
+[Download the Windows preview package](https://github.com/Byton-Patrica/gestirn-dev/releases/download/v0.11/Gestirn-dev-0.11-preview.zip).
 The release includes a standalone Windows preview executable. It provides the
 Gestirn dev editor surface, Ctrl+Space code hints and the embedded terminal.
 The original Delphi source remains the long-term IDE core and still requires a
@@ -54,10 +54,11 @@ ClassBrowsing source paths are available, and build the `devcpp` project.
 The standalone preview can be built with the Visual Studio C# compiler using
 the files under `GestirnDevPreview/`.
 
-## Direction after 0.1
+## Direction after 0.11
 
 The next milestones will add Clangd/LSP-based semantic completion, CMake and
 Ninja project support, modern compiler profiles, Git integration, and a
 persistent terminal session suitable for long-running AI agents.
+
 
 
