@@ -20,6 +20,19 @@ The terminal is intentionally small in 0.1. It runs one command per process;
 persistent interactive shell sessions, terminal profiles and agent-specific
 integrations are planned for later releases.
 
+## Download
+
+The Windows download page is the [v0.1.0 GitHub Release](https://github.com/Byton-Patrica/gestirn-dev/releases/tag/v0.1.0).
+The repository currently contains the source release; a compiled Windows
+executable will be attached after the legacy Delphi project is built with a
+compatible Delphi 6/7 toolchain.
+
+## Branding
+
+The GestirnEra DataRot icon set is kept under `Assets/Branding/`. The `.ico`
+asset is also wired into the application and file-association icon paths so
+the same identity is used by the executable, shortcuts and source files.
+
 ## Source and license
 
 Gestirn dev preserves the upstream GPL licensing and attribution. The source
@@ -38,3 +51,4 @@ ClassBrowsing source paths are available, and build the `devcpp` project.
 The next milestones will add Clangd/LSP-based semantic completion, CMake and
 Ninja project support, modern compiler profiles, Git integration, and a
 persistent terminal session suitable for long-running AI agents.
+
