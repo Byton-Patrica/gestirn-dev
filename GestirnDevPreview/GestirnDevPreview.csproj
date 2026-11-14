@@ -11,6 +11,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Content Include="GestirnEra-datarot.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\Assets\Branding\GestirnEra-datarot-256.png" Link="GestirnEra-datarot-256.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
 
