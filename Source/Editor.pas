@@ -1172,6 +1172,14 @@ begin
   if not Assigned(fText.Highlighter) then
     Exit;
 
+  // Gestirn dev 0.1: provide an explicit completion command.
+  // Automatic completion remains enabled for '.', '::' and '->'.
+  if (Key = VK_SPACE) and (ssCtrl in Shift) and fCompletionBox.Enabled then begin
+    ShowCompletion;
+    Key := 0;
+    Exit;
+  end;
+
   // See if we can undo what has been inserted by HandleSymbolCompletion
   case (Key) of
     VK_CONTROL: begin

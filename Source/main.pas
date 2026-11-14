@@ -214,6 +214,8 @@ type
     actEnviroOptions: TAction;
     actEditorOptions: TAction;
     actConfigTools: TAction;
+    actGestirnTerminal: TAction;
+    GestirnTerminalItem: TMenuItem;
     actFullScreen: TAction;
     actNext: TAction;
     actPrev: TAction;
@@ -573,6 +575,7 @@ type
     procedure actCompOptionsExecute(Sender: TObject);
     procedure actEditorOptionsExecute(Sender: TObject);
     procedure actConfigToolsExecute(Sender: TObject);
+    procedure actGestirnTerminalExecute(Sender: TObject);
     procedure actUnitRemoveExecute(Sender: TObject);
     procedure actUnitRenameExecute(Sender: TObject);
     procedure actUnitOpenExecute(Sender: TObject);
@@ -877,7 +880,8 @@ uses
   NewTemplateFrm, FunctionSearchFrm, NewFunctionFrm, NewVarFrm, NewClassFrm,
   ProfileAnalysisFrm, FilePropertiesFrm, AddToDoFrm, ViewToDoFrm,
   ImportMSVCFrm, ImportCBFrm, CPUFrm, FileAssocs, TipOfTheDayFrm,
-  WindowListFrm, RemoveUnitFrm, ParamsFrm, ProcessListFrm, SynEditHighlighter;
+  WindowListFrm, RemoveUnitFrm, ParamsFrm, ProcessListFrm, SynEditHighlighter,
+  GestirnTerminalFrm;
 
 {$R *.dfm}
 
@@ -2417,6 +2421,11 @@ end;
 procedure TMainForm.actConfigToolsExecute(Sender: TObject);
 begin
   fTools.Edit;
+end;
+
+procedure TMainForm.actGestirnTerminalExecute(Sender: TObject);
+begin
+  TGestirnTerminalForm.Create(Self).Show;
 end;
 
 procedure TMainForm.actUnitRemoveExecute(Sender: TObject);
@@ -5760,6 +5769,18 @@ end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
+  Caption := DEVCPP + ' ' + DEVCPP_VERSION;
+
+  // Create the terminal action in code so existing .dfm files remain loadable.
+  actGestirnTerminal := TAction.Create(Self);
+  actGestirnTerminal.Caption := 'Embedded terminal...';
+  actGestirnTerminal.Category := 'Tools';
+  actGestirnTerminal.ShortCut := ShortCut(Ord('`'), [ssCtrl]);
+  actGestirnTerminal.OnExecute := actGestirnTerminalExecute;
+  GestirnTerminalItem := TMenuItem.Create(Self);
+  GestirnTerminalItem.Action := actGestirnTerminal;
+  ToolsMenu.Insert(ToolsMenu.IndexOf(PackageManagerItem), GestirnTerminalItem);
+
   fFirstShow := true;
 
   // Backup PATH variable
