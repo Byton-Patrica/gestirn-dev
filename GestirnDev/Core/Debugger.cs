@@ -41,7 +41,7 @@ internal sealed class GdbSession : IDisposable
     public bool Alive { get { return gdb != null && !gdb.HasExited && !exited; } }
     public bool Paused { get; private set; }
 
-    public void Start(string gdbPath, string exe, string workingDir, IEnumerable<KeyValuePair<string, int>> breakpoints)
+    public void Start(string gdbPath, string exe, string workingDir, IEnumerable<KeyValuePair<string, int>> breakpoints, string programArgs = null)
     {
         var psi = new ProcessStartInfo(gdbPath, "--interpreter=mi2 --nx --quiet \"" + exe + "\"")
         {
@@ -61,6 +61,7 @@ internal sealed class GdbSession : IDisposable
         Send("-gdb-set print pretty on");
         Send("-gdb-set charset UTF-8");
         foreach (var bp in breakpoints) AddBreakpoint(bp.Key, bp.Value);
+        if (!string.IsNullOrEmpty(programArgs)) Send("-exec-arguments " + programArgs);
         Send("-exec-run", (cls, r) => { if (cls == "error") Emit(L.T("Could not start: ", "无法启动：") + Get(r, "msg")); });
     }
 

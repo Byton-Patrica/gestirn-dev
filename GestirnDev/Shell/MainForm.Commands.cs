@@ -158,6 +158,29 @@ internal sealed partial class MainForm
         var about = C("help.about", "About Gestirn dev", "关于 Gestirn dev", Keys.None, ShowAbout, "info");
         var repo = C("help.repo", "Project on GitHub", "GitHub 项目主页", Keys.None, () => Process.Start("https://github.com/Byton-Patrica/gestirn-dev"), "info");
 
+        var syntax = C("build.syntax", "Syntax Check", "语法检查", Keys.Control | Keys.F9, SyntaxCheck, "check");
+        var progArgs = C("build.args", "Program Arguments...", "程序运行参数...", Keys.None, SetProgramArguments, "term");
+        var projNew = C("project.newFile", "New File in Project...", "在项目中新建文件...", Keys.None, NewFileInProject, "new");
+        var projAdd = C("project.add", "Add Files to Project...", "添加文件到项目...", Keys.None, AddFilesToProject, "plus");
+        var projRemove = C("project.remove", "Remove Current File from Project", "从项目中移除当前文件", Keys.None, RemoveActiveFromProject, "minus");
+        var projOptions = C("project.options", "Project Options...", "项目属性...", Keys.Alt | Keys.P, ShowProjectOptions, "gear");
+        var gotoDef = C("edit.gotoDefinition", "Go to Definition", "转到定义", Keys.Control | Keys.Shift | Keys.G, GoToDefinition, "arrow", "Ctrl+Shift+G / Ctrl+Click");
+        var bookmark = C("edit.bookmark", "Toggle Bookmark", "切换书签", Keys.None, () => Ed(e => e.ToggleBookmark(e.FirstFreeBookmark())), "outline", "Ctrl+Shift+1…9");
+        var nextBookmark = C("edit.nextBookmark", "Next Bookmark", "下一个书签", Keys.F2, () => Ed(e => e.NextBookmark()), "down");
+        var insDate = C("insert.date", "Date and Time", "日期和时间", Keys.None, () => InsertText(DateTime.Now.ToString("yyyy-MM-dd HH:mm")), "recent");
+        var insHeader = C("insert.header", "File Header Comment", "文件头注释", Keys.None, InsertFileHeader, "format");
+        var insGuard = C("insert.guard", "Include Guard", "头文件保护宏", Keys.None, InsertIncludeGuard, "project");
+        var insMain = C("insert.main", "main Function", "main 函数", Keys.None, () => InsertSnippet("main"), "run");
+        var insClass = C("insert.class", "Class Skeleton", "类框架", Keys.None, () => InsertSnippet("class"), "project");
+        var print = C("file.print", "Print...", "打印...", Keys.None, PrintActive, "file");
+        var exportHtml = C("file.exportHtml", "Export as HTML...", "导出为 HTML...", Keys.None, ExportHtml, "file");
+        var encoding = C("file.encoding", "Switch Encoding (UTF-8 / GBK)", "切换编码（UTF-8 / GBK）", Keys.None, ChooseEncoding, "save");
+        var themeCmd = C("view.theme", "Toggle Light / Dark Theme", "切换亮色 / 暗色主题", Keys.Control | Keys.Alt | Keys.T, ToggleTheme, "palette");
+        var animCmd = C("view.animations", "Toggle Rich Animations", "开关复杂动画", Keys.None, ToggleAnimations, "palette");
+        var newTerm = C("terminal.new", "New Terminal", "新建终端", Keys.Control | Keys.Shift | Keys.Oemtilde, NewTerminal, "term");
+        var termSide = C("terminal.sidebar", "Terminal in Sidebar", "在侧边栏打开终端", Keys.None, () => PlaceTerminal(true), "sidebar");
+        var termPanel = C("terminal.panel", "Terminal in Bottom Panel", "在底部面板打开终端", Keys.None, () => PlaceTerminal(false), "panel");
+
         var recent = new ToolStripMenuItem(L.T("Open Recent", "最近打开")) { ForeColor = Theme.Text, Padding = Ui.Pad(2, 3, 2, 3) };
         recent.DropDown.BackColor = Theme.PanelHi;
         ((ToolStripDropDownMenu)recent.DropDown).ShowImageMargin = false;
@@ -174,11 +197,14 @@ internal sealed partial class MainForm
             if (recent.DropDownItems.Count == 0) recent.DropDownItems.Add(new ToolStripMenuItem(L.T("(empty)", "（空）")) { Enabled = false });
         };
 
-        menu.Items.Add(MenuOf("File", "文件", newFile, newProject, null, openFile, openFolder, openProject, recent, null, save, saveAs, saveAll, null, close, reopen, closeFolder, null, exit));
-        menu.Items.Add(MenuOf("Edit", "编辑", undo, redo, null, cut, copy, paste, selectAll, null, find, replace, findNext, findPrev, findFiles, null, gotoLine, gotoSymbol, null, comment, duplicate, moveUp, moveDown, deleteLine, format, suggest));
-        menu.Items.Add(MenuOf("View", "视图", commandPalette, quickOpen, null, viewExplorer, viewSearch, viewOutline, viewDebug, null, toggleSide, togglePanel, viewProblems, viewOutput, viewTerminal, null, zoomIn, zoomOut, zoomReset));
-        menu.Items.Add(MenuOf("Build", "编译", compile, run, compileRun, rebuild, stop, null, buildSettings));
+        menu.Items.Add(MenuOf("File", "文件", newFile, newProject, null, openFile, openFolder, openProject, recent, null, save, saveAs, saveAll, encoding, null, print, exportHtml, null, close, reopen, closeFolder, null, exit));
+        menu.Items.Add(MenuOf("Edit", "编辑", undo, redo, null, cut, copy, paste, selectAll, null, find, replace, findNext, findPrev, findFiles, null, gotoLine, gotoSymbol, gotoDef, bookmark, nextBookmark, null, comment, duplicate, moveUp, moveDown, deleteLine, format, suggest));
+        menu.Items.Add(MenuOf("Insert", "插入", insDate, insHeader, insGuard, null, insMain, insClass));
+        menu.Items.Add(MenuOf("View", "视图", commandPalette, quickOpen, null, viewExplorer, viewSearch, viewOutline, viewDebug, null, toggleSide, togglePanel, viewProblems, viewOutput, viewTerminal, null, themeCmd, animCmd, null, zoomIn, zoomOut, zoomReset));
+        menu.Items.Add(MenuOf("Project", "项目", newProject, openProject, null, projNew, projAdd, projRemove, null, projOptions, closeFolder));
+        menu.Items.Add(MenuOf("Build", "编译", compile, run, compileRun, rebuild, syntax, stop, null, progArgs, buildSettings));
         menu.Items.Add(MenuOf("Debug", "调试", debugStart, stepOver, stepInto, stepOut, debugStop, null, toggleBp, addWatch, clearBps));
+        menu.Items.Add(MenuOf("Terminal", "终端", newTerm, viewTerminal, null, termSide, termPanel));
         menu.Items.Add(MenuOf("Tools", "工具", openSettings, format, openTerminal, null, openScratch, openData));
         menu.Items.Add(MenuOf("Help", "帮助", commandPalette, shortcuts, null, repo, about));
 
@@ -465,7 +491,6 @@ internal sealed partial class MainForm
             OpenSettings();
             return;
         }
-        if (compiler != settings.CompilerPath) settings.CompilerPath = compiler;
         if (gdb != null && gdb.Alive) gdb.Stop();
 
         building = true;
@@ -505,6 +530,8 @@ internal sealed partial class MainForm
                 output.Append((result.UpToDate ? L.T("Up to date: ", "已是最新：") : L.T("Build succeeded: ", "编译成功：")) + result.ExePath + "  (" + secs + "s)", Theme.Lime);
                 status.Message = L.T("Build succeeded", "编译成功") + "  ·  " + secs + "s" + (warnings > 0 ? "  ·  " + warnings + L.T(" warnings", " 个警告") : "");
                 status.Flash(Theme.Lime);
+                var burstFrom = button.Visible ? button : runBtn;
+                topBar.Burst(new Point(burstFrom.Left + burstFrom.Width / 2, burstFrom.Top + burstFrom.Height / 2));
                 if (warnings > 0 && !run && !debug)
                     toasts.Show(L.T("Built with warnings", "编译成功，但有警告"), string.Format(L.T("{0} warnings — see Problems.", "{0} 个警告，详见“问题”面板。"), warnings), ToastKind.Warning);
                 else if (!run && !debug)
@@ -517,6 +544,7 @@ internal sealed partial class MainForm
                 output.Append(L.T("Build failed.", "编译失败。"), Theme.Red);
                 status.Message = string.Format(L.T("Build failed · {0} errors", "编译失败 · {0} 个错误"), Math.Max(errors, 1));
                 status.Flash(Theme.Red);
+                status.Shake();
                 var first = result.Diagnostics.FirstOrDefault(d => d.Severity == Severity.Error);
                 toasts.Show(string.Format(L.T("Build failed · {0} errors", "编译失败 · {0} 个错误"), Math.Max(errors, 1)),
                     first != null ? (first.Hint ?? first.Message) : L.T("See the Output panel for details.", "详情见“输出”面板。"), ToastKind.Error, 5000);
@@ -564,7 +592,7 @@ internal sealed partial class MainForm
         try
         {
             programs.RemoveAll(p => { try { return p.HasExited; } catch (InvalidOperationException) { return true; } });
-            var proc = Toolchain.RunProgram(exe, null, Path.GetDirectoryName(exe));
+            var proc = Toolchain.RunProgram(exe, settings.ProgramArgs, Path.GetDirectoryName(exe));
             proc.EnableRaisingEvents = true;
             proc.Exited += (_, _) => BeginInvoke(new Action(() => { status.Message = L.T("Program finished", "程序已结束"); status.Invalidate(); }));
             programs.Add(proc);
@@ -662,7 +690,7 @@ internal sealed partial class MainForm
         SetDebugMode(true);
         debugPanel.Breakpoints = bps;
         debugPanel.Rebuild();
-        try { gdb.Start(gdbPath, exe, dir, bps); }
+        try { gdb.Start(gdbPath, exe, dir, bps, settings.ProgramArgs); }
         catch (Exception ex) when (ex is Win32Exception || ex is InvalidOperationException)
         {
             toasts.Show(L.T("Can't start gdb", "无法启动 gdb"), ex.Message, ToastKind.Error);
@@ -820,6 +848,7 @@ internal sealed partial class MainForm
     private void OpenSettings()
     {
         string oldLanguage = settings.Language;
+        bool oldSidebarTerminal = settings.TerminalInSidebar;
         using (var dialog = new SettingsDialog(settings))
         {
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
@@ -833,6 +862,10 @@ internal sealed partial class MainForm
             d.Editor.SetCodeFont(Theme.CodeFamily, settings.FontSize);
         }
         autosaveTimer.Interval = Math.Max(300, settings.AutoSaveDelay);
+        Animator.Reduced = !settings.Animations;
+        ApplyTheme(ResolveLight(settings.Theme));
+        terminal.DefaultShell = settings.TerminalShell;
+        if (oldSidebarTerminal != settings.TerminalInSidebar) PlaceTerminal(settings.TerminalInSidebar);
         settings.Save();
         UpdateChrome();
         UpdateCaretStatus();
@@ -850,6 +883,7 @@ internal sealed partial class MainForm
             case "compiler":
             case "indent": OpenSettings(); break;
             case "project": ShowView("explorer"); ToggleSidebar(true); break;
+            case "enc": ChooseEncoding(); break;
             case "eol":
                 if (active == null) break;
                 active.CrLf = !active.CrLf;

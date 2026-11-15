@@ -403,11 +403,11 @@ internal sealed class TabStrip : Control
         var docs = Docs != null ? Docs() : new List<EditorDoc>();
         var act = ActiveDoc != null ? ActiveDoc() : null;
         float off = offset.Value;
-        g.TranslateTransform(-off, 0);
         for (int i = 0; i < docs.Count && i < rects.Count; i++)
         {
             var d = docs[i];
             var r = rects[i];
+            r.Offset(-(int)Math.Round(off), 0);
             bool isActive = d == act, isHover = i == hover;
             if (isActive) Shapes.FillRound(g, Theme.Raised, r, Ui.D(9));
             else if (isHover) Shapes.FillRound(g, Ui.Alpha(Theme.Hover, 140), r, Ui.D(9));
@@ -426,8 +426,7 @@ internal sealed class TabStrip : Control
                 Glyphs.Draw(g, "close", Rectangle.Inflate(close, -Ui.D(4), -Ui.D(4)), isHover && hoverClose ? Theme.Text : Theme.Muted);
         }
         if (act != null && indicatorW.Value > 1)
-            Shapes.FillRound(g, Theme.Orange, new RectangleF(indicatorX.Value, Height - Ui.D(4), indicatorW.Value, Ui.D(2.5f)), Ui.D(1.5f));
-        g.ResetTransform();
+            Shapes.FillRound(g, Theme.Orange, new RectangleF(indicatorX.Value - off, Height - Ui.D(4), indicatorW.Value, Ui.D(2.5f)), Ui.D(1.5f));
         using (var pen = new Pen(Theme.EdgeSoft)) g.DrawLine(pen, 0, Height - 1, Width, Height - 1);
     }
 }
@@ -475,6 +474,16 @@ internal sealed class StatusBar : Control
             if (busy) Animator.AddTicker(ticker); else Animator.RemoveTicker(ticker);
             Invalidate();
         }
+    }
+
+    private readonly AnimatedFloat shake = new AnimatedFloat(0f);
+    private bool shakeHooked;
+
+    public void Shake()
+    {
+        if (!shakeHooked) { shake.Changed += Invalidate; shakeHooked = true; }
+        shake.Snap(1f);
+        shake.To(0f, 520, Ease.Linear);
     }
 
     public void Flash(Color color)
@@ -529,6 +538,7 @@ internal sealed class StatusBar : Control
             using (var b = new SolidBrush(Ui.Alpha(Theme.Orange, 200)))
                 for (int px = -stride + shift; px < Width; px += stride) g.FillRectangle(b, px, 0, cell, Math.Max(1, Ui.D(2)));
         }
+        x += (int)(Math.Sin(shake.Value * 26) * shake.Value * Ui.D(6));
         Shapes.Text(g, Message ?? "", Theme.UiSmall, new Rectangle(x, 0, Width / 2, Height), flash.Value > 0.05f ? Ui.Lerp(Theme.TextDim, flashColor, flash.Value) : Theme.TextDim, Shapes.Left);
         for (int i = 0; i < segments.Count; i++)
         {
@@ -631,7 +641,7 @@ internal sealed class PanelTabs : Control
 // Shown when no file is open: logo with twinkling pixels, quick actions and recent items.
 internal sealed class WelcomePage : Control
 {
-    public sealed class Action2 { public string Glyph, Title, Hint; public Action Run; public Rectangle Bounds; public AnimatedFloat Hover = new AnimatedFloat(0f); }
+    public sealed class Action2 { public string Glyph, Title, Hint; public Action Run; public Rectangle Bounds; public AnimatedFloat Hover = new AnimatedFloat(0f); public AnimatedFloat Appear = new AnimatedFloat(1f); }
 
     public readonly List<Action2> Actions = new List<Action2>();
     public readonly List<Tuple<string, string, Action>> Recent = new List<Tuple<string, string, Action>>();
@@ -669,6 +679,7 @@ internal sealed class WelcomePage : Control
     {
         var a = new Action2 { Glyph = glyph, Title = title, Hint = hint, Run = run };
         a.Hover.Changed += Invalidate;
+        a.Appear.Changed += Invalidate;
         Actions.Add(a);
     }
 
@@ -676,6 +687,8 @@ internal sealed class WelcomePage : Control
     {
         base.OnVisibleChanged(e);
         if (Visible) Animator.AddTicker(ticker); else Animator.RemoveTicker(ticker);
+        if (Visible)
+            for (int i = 0; i < Actions.Count; i++) { Actions[i].Appear.Snap(0f); Actions[i].Appear.To(1f, 420, Ease.OutBack, 80 + i * 70); }
     }
 
     protected override void Dispose(bool disposing) { if (disposing) Animator.RemoveTicker(ticker); base.Dispose(disposing); }
@@ -794,7 +807,8 @@ internal sealed class WelcomePage : Control
             int x = (Width - rowW) / 2 + col * (cardW + gap);
             var a = Actions[i];
             float h = a.Hover.Value;
-            int lift = (int)(h * Ui.D(3));
+            if (a.Appear.Value <= 0.02f) { a.Bounds = new Rectangle(x, y + row * (cardH + gap), cardW, cardH); continue; }
+            int lift = (int)(h * Ui.D(3)) - (int)((1f - Math.Min(1f, a.Appear.Value)) * Ui.D(26));
             a.Bounds = new Rectangle(x, y + row * (cardH + gap), cardW, cardH);
             var r = new RectangleF(x, a.Bounds.Y - lift, cardW, cardH);
             Shapes.FillRound(g, Ui.Lerp(Theme.Panel, Theme.Raised, h), r, Ui.D(12));

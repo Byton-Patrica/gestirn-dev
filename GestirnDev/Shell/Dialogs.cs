@@ -118,6 +118,12 @@ internal sealed class SettingsDialog : DarkDialog
             new[] { "auto", "gbk", "utf8" }, settings.ExecCharset, v => settings.ExecCharset = v);
 
         Section(L.T("Interface", "界面"));
+        Choice(L.T("Theme", "主题"), new[] { L.T("Follow Windows", "跟随系统"), L.T("Dark", "暗色"), L.T("Light", "亮色") },
+            new[] { "auto", "dark", "light" }, settings.Theme, v => settings.Theme = v);
+        Toggle(L.T("Rich animations", "复杂动画"), L.T("Ripples, gliding caret, particle bursts and staggered entrances.", "点击涟漪、光标滑动、粒子迸发、卡片依次出现等效果。"), settings.Animations, v => settings.Animations = v);
+        Choice(L.T("Terminal shell", "终端默认 Shell"), new[] { L.T("Auto (PowerShell)", "自动（PowerShell）"), "Windows PowerShell", L.T("Command Prompt", "命令提示符"), "Git Bash" },
+            new[] { "auto", "powershell", "cmd", "bash" }, settings.TerminalShell, v => settings.TerminalShell = v);
+        Toggle(L.T("Terminal in sidebar", "终端放在侧边栏"), L.T("Off: the terminal lives in the bottom panel.", "关闭时终端位于底部面板。"), settings.TerminalInSidebar, v => settings.TerminalInSidebar = v);
         Choice(L.T("Language (restart to apply)", "语言（重启后生效）"), new[] { L.T("Follow Windows", "跟随系统"), "中文", "English" },
             new[] { "auto", "zh", "en" }, settings.Language, v => settings.Language = v);
         y += Ui.D(10);
@@ -288,6 +294,68 @@ internal sealed class NewProjectDialog : DarkDialog
         Glyphs.Draw(g, t.Glyph ?? "file", new Rectangle(r.X + Ui.D(20), r.Y + (r.Height - Ui.D(16)) / 2, Ui.D(16), Ui.D(16)), selected ? Theme.Orange : Theme.TextDim);
         Shapes.Text(g, t.Name, Theme.UiSemi, new Rectangle(r.X + Ui.D(50), r.Y + Ui.D(4), r.Width - Ui.D(60), Ui.D(20)), Theme.Text, Shapes.Left);
         Shapes.Text(g, t.Description ?? "", Theme.UiSmall, new Rectangle(r.X + Ui.D(50), r.Y + Ui.D(22), r.Width - Ui.D(60), Ui.D(18)), Theme.Muted, Shapes.Left);
+    }
+}
+
+// Dev-C++ "Project Options": type, compiler and linker flags, folders and output.
+internal sealed class ProjectOptionsDialog : DarkDialog
+{
+    private readonly DevProject project;
+    private readonly List<Action> apply = new List<Action>();
+    private readonly Panel body = new Panel { AutoScroll = true, BackColor = Theme.Panel };
+    private int y = 0;
+
+    public ProjectOptionsDialog(DevProject project)
+    {
+        this.project = project;
+        Text = L.T("Project Options", "项目属性") + " - " + project.Name;
+        ClientSize = Ui.D(640, 640);
+        body.Bounds = new Rectangle(0, 0, ClientSize.Width, ClientSize.Height - Ui.D(64));
+        Native.DarkScrollbars(body);
+        Controls.Add(body);
+        y = Ui.D(16);
+        Field(L.T("Project name", "项目名称"), project.Name, v => project.Name = v.Length > 0 ? v : project.Name);
+        var types = new[] { L.T("Windows application (GUI)", "Windows 窗口程序"), L.T("Console application", "控制台程序"), L.T("Static library (.a)", "静态库 (.a)"), L.T("DLL", "动态链接库 (DLL)") };
+        var type = new ChoiceBox(types, Math.Max(0, Math.Min(3, project.Type))) { Width = Ui.D(300) };
+        Row(L.T("Type", "类型"), type);
+        apply.Add(() => project.Type = type.SelectedIndex);
+        Field(L.T("C compiler flags", "C 编译选项"), project.CompilerFlags, v => project.CompilerFlags = v);
+        Field(L.T("C++ compiler flags", "C++ 编译选项"), project.CppFlags, v => project.CppFlags = v);
+        Field(L.T("Linker flags (e.g. -lgdi32 -lws2_32)", "链接选项（如 -lgdi32 -lws2_32）"), project.LinkerFlags, v => project.LinkerFlags = v);
+        Field(L.T("Include folders (; separated)", "头文件目录（用 ; 分隔）"), project.IncludesRaw, v => project.IncludesRaw = v);
+        Field(L.T("Library folders (; separated)", "库目录（用 ; 分隔）"), project.LibsRaw, v => project.LibsRaw = v);
+        Field(L.T("Executable output folder", "可执行文件输出目录"), project.ExeOutput, v => project.ExeOutput = v);
+        Field(L.T("Object file folder", "目标文件目录"), project.ObjectOutput, v => project.ObjectOutput = v);
+        Field(L.T("Output file name (empty = project name)", "输出文件名（留空 = 项目名）"), project.OverrideOutput ? project.OverrideOutputName : "", v =>
+        {
+            project.OverrideOutput = v.Length > 0;
+            project.OverrideOutputName = v;
+        });
+        var useMake = new ToggleSwitch { Checked = project.UseCustomMakefile };
+        Row(L.T("Use custom Makefile (mingw32-make)", "使用自定义 Makefile（mingw32-make）"), useMake);
+        apply.Add(() => project.UseCustomMakefile = useMake.Checked);
+        Field(L.T("Makefile", "Makefile 文件"), project.CustomMakefile, v => project.CustomMakefile = v);
+
+        var ok = AddButton(L.T("Save", "保存"), ButtonKind.Primary, ClientSize.Width - Ui.D(232), ClientSize.Height - Ui.D(50), Ui.D(104));
+        var cancel = AddButton(L.T("Cancel", "取消"), ButtonKind.Secondary, ClientSize.Width - Ui.D(120), ClientSize.Height - Ui.D(50), Ui.D(100));
+        ok.Click += (_, _) => { foreach (var a in apply) a(); DialogResult = DialogResult.OK; };
+        cancel.Click += (_, _) => DialogResult = DialogResult.Cancel;
+    }
+
+    private void Row(string title, Control control)
+    {
+        body.Controls.Add(new Label { Text = title, Location = new Point(Ui.D(20), y + Ui.D(5)), Size = new Size(Ui.D(270), Ui.D(22)), ForeColor = Theme.Text, BackColor = Theme.Panel, Font = Theme.Ui9, AutoEllipsis = true });
+        control.Location = new Point(body.ClientSize.Width - Ui.D(20) - control.Width, y);
+        body.Controls.Add(control);
+        y += Math.Max(Ui.D(44), control.Height + Ui.D(12));
+    }
+
+    private void Field(string title, string value, Action<string> set)
+    {
+        var input = new RoundInput("") { Size = Ui.D(300, 32) };
+        input.Text = value ?? "";
+        Row(title, input);
+        apply.Add(() => set(input.Text.Trim()));
     }
 }
 }

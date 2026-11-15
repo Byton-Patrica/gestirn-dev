@@ -35,50 +35,116 @@ internal static class Ui
 }
 
 // Palette sampled from the GestirnEra DataRot logo: ink black, ivory, orange, gold and lime pixels.
+// Two variants: dark (default) and light. Apply() swaps them at runtime.
 internal static class Theme
 {
-    public static readonly Color Bg = Color.FromArgb(11, 11, 13);
-    public static readonly Color Panel = Color.FromArgb(18, 18, 21);
-    public static readonly Color PanelHi = Color.FromArgb(24, 24, 28);
-    public static readonly Color Raised = Color.FromArgb(32, 32, 37);
-    public static readonly Color Hover = Color.FromArgb(42, 42, 48);
-    public static readonly Color Edge = Color.FromArgb(38, 38, 44);
-    public static readonly Color EdgeSoft = Color.FromArgb(28, 28, 33);
+    public static bool IsLight;
+    public static Color Bg, Panel, PanelHi, Raised, Hover, Edge, EdgeSoft;
+    public static Color Text, TextDim, Muted, Faint;
+    public static Color Orange, OrangeHot, OrangeDeep, Gold, Lime, Red, Blue, Violet, Ink;
+    public static Color EditorBg, CurrentLine, Selection, SelectionInactive, GutterText, FindMatch, BracketMatch, TerminalBg;
+    public static Color SynPlain, SynKeyword, SynType, SynString, SynNumber, SynComment, SynPreproc, SynFunction, SynOperator;
 
-    public static readonly Color Text = Color.FromArgb(238, 235, 226);
-    public static readonly Color TextDim = Color.FromArgb(176, 172, 162);
-    public static readonly Color Muted = Color.FromArgb(118, 115, 108);
-    public static readonly Color Faint = Color.FromArgb(78, 76, 72);
+    static Theme() { Apply(false); }
 
-    public static readonly Color Orange = Color.FromArgb(240, 96, 24);
-    public static readonly Color OrangeHot = Color.FromArgb(255, 124, 48);
-    public static readonly Color OrangeDeep = Color.FromArgb(196, 74, 16);
-    public static readonly Color Gold = Color.FromArgb(245, 179, 53);
-    public static readonly Color Lime = Color.FromArgb(196, 242, 58);
-    public static readonly Color Red = Color.FromArgb(255, 99, 99);
-    public static readonly Color Blue = Color.FromArgb(120, 180, 255);
-    public static readonly Color Violet = Color.FromArgb(201, 160, 255);
-    public static readonly Color Ink = Color.FromArgb(14, 12, 10);
+    public static void Apply(bool light)
+    {
+        IsLight = light;
+        if (!light)
+        {
+            Bg = C(11, 11, 13); Panel = C(18, 18, 21); PanelHi = C(24, 24, 28); Raised = C(32, 32, 37); Hover = C(42, 42, 48);
+            Edge = C(38, 38, 44); EdgeSoft = C(28, 28, 33);
+            Text = C(238, 235, 226); TextDim = C(176, 172, 162); Muted = C(118, 115, 108); Faint = C(78, 76, 72);
+            Orange = C(240, 96, 24); OrangeHot = C(255, 124, 48); OrangeDeep = C(196, 74, 16); Gold = C(245, 179, 53);
+            Lime = C(196, 242, 58); Red = C(255, 99, 99); Blue = C(120, 180, 255); Violet = C(201, 160, 255); Ink = C(14, 12, 10);
+            EditorBg = C(14, 14, 17); CurrentLine = C(22, 22, 27); Selection = Color.FromArgb(78, 240, 96, 24);
+            SelectionInactive = Color.FromArgb(48, 176, 172, 162); GutterText = C(74, 72, 68); FindMatch = Color.FromArgb(70, 245, 179, 53);
+            BracketMatch = Color.FromArgb(120, 196, 242, 58); TerminalBg = C(12, 12, 15);
+            SynPlain = C(222, 218, 208); SynKeyword = C(255, 124, 48); SynType = C(255, 184, 108); SynString = C(196, 242, 58);
+            SynNumber = C(245, 179, 53); SynComment = C(108, 105, 98); SynPreproc = C(201, 160, 255); SynFunction = C(132, 196, 255);
+            SynOperator = C(170, 166, 156);
+        }
+        else
+        {
+            Bg = C(238, 235, 228); Panel = C(247, 245, 240); PanelHi = C(255, 255, 255); Raised = C(232, 228, 220); Hover = C(222, 217, 207);
+            Edge = C(214, 209, 199); EdgeSoft = C(226, 222, 213);
+            Text = C(30, 28, 25); TextDim = C(78, 74, 68); Muted = C(128, 123, 115); Faint = C(170, 165, 156);
+            Orange = C(222, 84, 14); OrangeHot = C(240, 102, 30); OrangeDeep = C(180, 64, 8); Gold = C(176, 120, 0);
+            Lime = C(86, 138, 0); Red = C(214, 52, 52); Blue = C(40, 104, 210); Violet = C(124, 78, 200); Ink = C(255, 252, 246);
+            EditorBg = C(255, 255, 255); CurrentLine = C(248, 245, 238); Selection = Color.FromArgb(70, 240, 96, 24);
+            SelectionInactive = Color.FromArgb(60, 120, 116, 108); GutterText = C(176, 171, 162); FindMatch = Color.FromArgb(90, 245, 179, 53);
+            BracketMatch = Color.FromArgb(150, 86, 138, 0); TerminalBg = C(252, 251, 248);
+            SynPlain = C(36, 34, 30); SynKeyword = C(206, 70, 6); SynType = C(166, 90, 10); SynString = C(72, 126, 0);
+            SynNumber = C(150, 100, 0); SynComment = C(140, 136, 128); SynPreproc = C(124, 70, 196); SynFunction = C(30, 98, 190);
+            SynOperator = C(96, 92, 84);
+        }
+    }
 
-    // Editor
-    public static readonly Color EditorBg = Color.FromArgb(14, 14, 17);
-    public static readonly Color CurrentLine = Color.FromArgb(22, 22, 27);
-    public static readonly Color Selection = Color.FromArgb(78, 240, 96, 24);
-    public static readonly Color SelectionInactive = Color.FromArgb(48, 176, 172, 162);
-    public static readonly Color GutterText = Color.FromArgb(74, 72, 68);
-    public static readonly Color FindMatch = Color.FromArgb(70, 245, 179, 53);
-    public static readonly Color BracketMatch = Color.FromArgb(120, 196, 242, 58);
+    private static Color C(int r, int g, int b) { return Color.FromArgb(r, g, b); }
 
-    // Syntax
-    public static readonly Color SynPlain = Color.FromArgb(222, 218, 208);
-    public static readonly Color SynKeyword = Color.FromArgb(255, 124, 48);
-    public static readonly Color SynType = Color.FromArgb(255, 184, 108);
-    public static readonly Color SynString = Color.FromArgb(196, 242, 58);
-    public static readonly Color SynNumber = Color.FromArgb(245, 179, 53);
-    public static readonly Color SynComment = Color.FromArgb(108, 105, 98);
-    public static readonly Color SynPreproc = Color.FromArgb(201, 160, 255);
-    public static readonly Color SynFunction = Color.FromArgb(132, 196, 255);
-    public static readonly Color SynOperator = Color.FromArgb(170, 166, 156);
+    // Snapshot of every palette colour, used to remap live controls when the theme changes.
+    public static Dictionary<string, Color> Snapshot()
+    {
+        var d = new Dictionary<string, Color>();
+        foreach (var f in typeof(Theme).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static))
+            if (f.FieldType == typeof(Color)) d[f.Name] = (Color)f.GetValue(null);
+        return d;
+    }
+
+    public static bool SystemPrefersLight()
+    {
+        try
+        {
+            using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"))
+            {
+                object v = key != null ? key.GetValue("AppsUseLightTheme") : null;
+                return v is int && (int)v == 1;
+            }
+        }
+        catch (System.Security.SecurityException) { return false; }
+    }
+
+    // Repaints a control tree in the new palette by mapping each old palette colour to its new value.
+    public static void Remap(Control root, Dictionary<string, Color> before)
+    {
+        var after = Snapshot();
+        var map = new Dictionary<int, Color>();
+        foreach (var kv in before)
+        {
+            int key = kv.Value.ToArgb();
+            if (!map.ContainsKey(key)) map[key] = after[kv.Key];
+        }
+        RemapTree(root, map);
+    }
+
+    private static void RemapTree(Control c, Dictionary<int, Color> map)
+    {
+        Color n;
+        var card = c as Card;
+        if (card != null)
+        {
+            if (map.TryGetValue(card.Fill.ToArgb(), out n)) card.Fill = n;
+            if (card.Outline.A > 0 && map.TryGetValue(card.Outline.ToArgb(), out n)) card.Outline = n;
+        }
+        else if (c.BackColor.A == 255 && map.TryGetValue(c.BackColor.ToArgb(), out n)) c.BackColor = n;
+        if (map.TryGetValue(c.ForeColor.ToArgb(), out n)) c.ForeColor = n;
+        var strip = c as ToolStrip;
+        if (strip != null)
+            foreach (ToolStripItem item in strip.Items) RemapItem(item, map);
+        foreach (Control child in c.Controls) RemapTree(child, map);
+        if (c.ContextMenuStrip != null) RemapTree(c.ContextMenuStrip, map);
+        c.Invalidate();
+    }
+
+    private static void RemapItem(ToolStripItem item, Dictionary<int, Color> map)
+    {
+        Color n;
+        if (map.TryGetValue(item.ForeColor.ToArgb(), out n)) item.ForeColor = n;
+        var menuItem = item as ToolStripMenuItem;
+        if (menuItem == null) return;
+        if (map.TryGetValue(menuItem.DropDown.BackColor.ToArgb(), out n)) menuItem.DropDown.BackColor = n;
+        foreach (ToolStripItem child in menuItem.DropDownItems) RemapItem(child, map);
+    }
 
     public static Font Ui9, Ui10, UiSemi, UiSmall, UiTitle, UiHero, Code, CodeSmall;
     public static string CodeFamily = "Consolas";

@@ -66,7 +66,7 @@ internal static class Native
     {
         try
         {
-            int on = 1;
+            int on = Theme.IsLight ? 0 : 1;
             if (DwmSetWindowAttribute(form.Handle, 20, ref on, 4) != 0) DwmSetWindowAttribute(form.Handle, 19, ref on, 4);
             int caption = ColorRef(Theme.Bg);
             DwmSetWindowAttribute(form.Handle, 35, ref caption, 4);
@@ -131,6 +131,8 @@ internal sealed class PixelButton : Control
 {
     private readonly AnimatedFloat hover = new AnimatedFloat(0f);
     private readonly AnimatedFloat press = new AnimatedFloat(0f);
+    private readonly AnimatedFloat ripple = new AnimatedFloat(1f);
+    private Point rippleAt;
     private bool busy;
     private double busyPhase;
     private readonly Action<double> busyTicker;
@@ -144,6 +146,7 @@ internal sealed class PixelButton : Control
         Radius = 9;
         hover.Changed += Invalidate;
         press.Changed += Invalidate;
+        ripple.Changed += Invalidate;
         busyTicker = now => { busyPhase = now / 700.0; Invalidate(); };
     }
 
@@ -176,7 +179,15 @@ internal sealed class PixelButton : Control
 
     protected override void OnMouseEnter(EventArgs e) { hover.To(1f, 120); base.OnMouseEnter(e); }
     protected override void OnMouseLeave(EventArgs e) { hover.To(0f, 220); press.To(0f, 120); base.OnMouseLeave(e); }
-    protected override void OnMouseDown(MouseEventArgs e) { if (e.Button == MouseButtons.Left) press.To(1f, 60); base.OnMouseDown(e); }
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        if (e.Button == MouseButtons.Left)
+        {
+            press.To(1f, 60);
+            if (!Animator.Reduced) { rippleAt = e.Location; ripple.Snap(0f); ripple.To(1f, 480); }
+        }
+        base.OnMouseDown(e);
+    }
     protected override void OnMouseUp(MouseEventArgs e) { press.To(0f, 160); base.OnMouseUp(e); }
     protected override void OnEnabledChanged(EventArgs e) { Invalidate(); base.OnEnabledChanged(e); }
     protected override void OnTextChanged(EventArgs e) { Invalidate(); base.OnTextChanged(e); }
@@ -234,6 +245,16 @@ internal sealed class PixelButton : Control
         var rect = new RectangleF(inset, inset, Width - inset * 2, Height - inset * 2);
         Shapes.FillRound(g, fill, rect, Ui.D(Radius));
         if (edge.A > 0) Shapes.StrokeRound(g, edge, rect, Ui.D(Radius), Math.Max(1f, Ui.Scale * 0.75f));
+        if (ripple.Value < 1f && Enabled)
+        {
+            float r = ripple.Value * Math.Max(Width, Height) * 1.4f;
+            var state = g.Save();
+            using (var clip = Shapes.Round(rect, Ui.D(Radius))) g.SetClip(clip);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            var rc = Kind == ButtonKind.Primary ? Theme.Ink : Theme.Orange;
+            using (var b = new SolidBrush(Ui.Alpha(rc, (int)(90 * (1f - ripple.Value))))) g.FillEllipse(b, rippleAt.X - r, rippleAt.Y - r, r * 2, r * 2);
+            g.Restore(state);
+        }
 
         int glyphSize = Ui.D(14);
         bool hasGlyph = Glyph != null || busy;

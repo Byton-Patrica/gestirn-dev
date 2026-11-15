@@ -267,6 +267,20 @@ internal static class Toolchain
         Directory.CreateDirectory(objDir);
         string exe = project.OutputPath;
         outcome.ExePath = exe;
+        if (project.UseCustomMakefile && !string.IsNullOrEmpty(project.CustomMakefile))
+        {
+            string make = Sibling(o.Compiler, "mingw32-make.exe") ?? "mingw32-make.exe";
+            string mf = project.FullPath(project.CustomMakefile);
+            if (rebuild) { log("mingw32-make clean"); await RunTool(make, "-f \"" + mf + "\" clean", dir, started); }
+            log("mingw32-make -f " + Path.GetFileName(mf));
+            var mr = await RunTool(make, "-f \"" + mf + "\"", dir, started);
+            outcome.Log.Append(mr.Output);
+            if (mr.Output.Length > 0) log(mr.Output.TrimEnd());
+            outcome.Diagnostics.AddRange(ParseDiagnostics(mr.Output, dir));
+            outcome.Success = mr.ExitCode == 0;
+            outcome.Elapsed = watch.Elapsed;
+            return outcome;
+        }
         var sources = project.Units.Where(u => u.Compile && DevProject.IsSource(u.FileName)).ToList();
         if (sources.Count == 0)
         {
@@ -367,6 +381,14 @@ internal static class Toolchain
         outcome.Success = link.ExitCode == 0 && File.Exists(exe);
         outcome.Elapsed = watch.Elapsed;
         return outcome;
+    }
+
+    // Compiles without producing output: fast feedback on errors (Dev-C++ "Syntax check").
+    public static async Task<List<Diagnostic>> SyntaxCheck(string source, BuildOptions o)
+    {
+        string dir = Path.GetDirectoryName(source);
+        var r = await RunTool(CompilerFor(source, o.Compiler), "-fsyntax-only " + CompileFlags(source, o) + Quote(Path.GetFileName(source)), dir, null);
+        return ParseDiagnostics(r.Output, dir);
     }
 
     // ------------------------------------------------------------------ run

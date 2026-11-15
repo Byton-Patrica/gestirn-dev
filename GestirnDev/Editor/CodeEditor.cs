@@ -74,6 +74,9 @@ internal sealed class CodeEditor : Control
     private int version;
 
     private readonly HashSet<int> breakpoints = new HashSet<int>();
+    private readonly Dictionary<int, int> bookmarks = new Dictionary<int, int>();
+    private readonly AnimatedFloat glideX = new AnimatedFloat(0f), glideY = new AnimatedFloat(0f);
+    private float glideTargetX = -1, glideTargetY = -1;
     private readonly List<Diagnostic> diagnostics = new List<Diagnostic>();
     private int execLine = -1;
 
@@ -116,6 +119,7 @@ internal sealed class CodeEditor : Control
     public event EventHandler ZoomChanged;
     public event Action<int> BreakpointToggled;
     public event EventHandler EscapePressed;
+    public event Action<string> DefinitionRequested;
 
     public CodeEditor()
     {
@@ -141,6 +145,8 @@ internal sealed class CodeEditor : Control
             if (idle > 12000 && caretAlpha >= 1f) StopBlink();
         };
         dragTicker = now => AutoScrollWhileDragging();
+        glideX.Changed += Invalidate;
+        glideY.Changed += Invalidate;
         SetCodeFont(Theme.CodeFamily, Theme.Code.SizeInPoints);
     }
 
@@ -275,6 +281,7 @@ internal sealed class CodeEditor : Control
         foreach (var l in moved) breakpoints.Add(l);
         foreach (var d in diagnostics) d.Line = map(d.Line);
         if (execLine >= 0) execLine = map(execLine);
+        foreach (var k in bookmarks.Keys.ToList()) bookmarks[k] = Math.Max(0, Math.Min(lines.Count - 1, map(bookmarks[k])));
         UpdateGutter();
     }
 
@@ -1125,6 +1132,50 @@ internal sealed class CodeEditor : Control
 
     public IList<Diagnostic> Diagnostics { get { return diagnostics; } }
 
+    // ------------------------------------------------------------------ bookmarks & words
+
+    public void ToggleBookmark(int number)
+    {
+        int line;
+        if (bookmarks.TryGetValue(number, out line) && line == caret.Line) bookmarks.Remove(number);
+        else
+        {
+            foreach (var k in bookmarks.Where(b => b.Value == caret.Line).Select(b => b.Key).ToList()) bookmarks.Remove(k);
+            bookmarks[number] = caret.Line;
+        }
+        Invalidate();
+    }
+
+    public void GoToBookmark(int number)
+    {
+        int line;
+        if (bookmarks.TryGetValue(number, out line)) GoTo(line, 0);
+    }
+
+    public int FirstFreeBookmark()
+    {
+        foreach (var b in bookmarks) if (b.Value == caret.Line) return b.Key;
+        for (int i = 1; i <= 9; i++) if (!bookmarks.ContainsKey(i)) return i;
+        return 9;
+    }
+
+    public void NextBookmark()
+    {
+        if (bookmarks.Count == 0) return;
+        var ordered = bookmarks.Values.OrderBy(l => l).ToList();
+        int next = ordered.FirstOrDefault(l => l > caret.Line);
+        GoTo(next > caret.Line ? next : ordered[0], 0);
+    }
+
+    public string WordAtCaret()
+    {
+        string s = lines[caret.Line];
+        int a = caret.Col, b = caret.Col;
+        while (a > 0 && CppSyntax.IsIdentChar(s[a - 1])) a--;
+        while (b < s.Length && CppSyntax.IsIdentChar(s[b])) b++;
+        return b > a ? s.Substring(a, b - a) : null;
+    }
+
     // ------------------------------------------------------------------ syntax helpers
 
     private int StateAt(int line)
@@ -1564,6 +1615,12 @@ internal sealed class CodeEditor : Control
 
         if (ctrl && !alt)
         {
+            if (code >= Keys.D1 && code <= Keys.D9)
+            {
+                int n = code - Keys.D0;
+                if (shift) ToggleBookmark(n); else GoToBookmark(n);
+                return true;
+            }
             switch (code)
             {
                 case Keys.A: SelectAll(); return true;
@@ -1641,6 +1698,13 @@ internal sealed class CodeEditor : Control
             {
                 int line = LineAt(e.Y);
                 if (line < lines.Count) ToggleBreakpoint(line);
+                return;
+            }
+            if ((ModifierKeys & Keys.Control) != 0)
+            {
+                SetCaret(HitTest(e.Location), false);
+                string word = WordAtCaret();
+                if (!string.IsNullOrEmpty(word) && DefinitionRequested != null) DefinitionRequested(word);
                 return;
             }
             double now = Animator.Now;
@@ -1898,7 +1962,15 @@ internal sealed class CodeEditor : Control
 
         if (focused)
         {
-            var p = CaretPixel();
+            // The caret glides to its new spot (rich animations); long jumps snap.
+            float tx = CellOf(caret.Line, caret.Col) * cellW, ty = caret.Line * lineH;
+            if (tx != glideTargetX || ty != glideTargetY)
+            {
+                bool jump = Animator.Reduced || glideTargetX < 0 || Math.Abs(ty - glideTargetY) > lineH * 3 || Math.Abs(tx - glideTargetX) > cellW * 40;
+                glideTargetX = tx; glideTargetY = ty;
+                if (jump) { glideX.Snap(tx); glideY.Snap(ty); } else { glideX.To(tx, 70); glideY.To(ty, 70); }
+            }
+            var p = new Point((int)Math.Round(textLeft + glideX.Value - sx), (int)Math.Round(glideY.Value - sy));
             if (p.X >= textLeft - 1 && caretAlpha > 0.02f)
                 using (var b = new SolidBrush(Ui.Alpha(Theme.Orange, (int)(255 * caretAlpha))))
                     g.FillRectangle(b, p.X, p.Y + Ui.D(3), Math.Max(2, Ui.D(2)), lineH - Ui.D(6));
@@ -2012,6 +2084,13 @@ internal sealed class CodeEditor : Control
             var dot = new Rectangle(Ui.D(7), y + (lineH - Ui.D(12)) / 2, Ui.D(12), Ui.D(12));
             if (breakpoints.Contains(l)) Glyphs.Draw(g, "breakpoint", dot, Theme.Red);
             if (l == execLine) Glyphs.Draw(g, "arrow", dot, Theme.Orange);
+            foreach (var bm in bookmarks)
+            {
+                if (bm.Value != l) continue;
+                var badge = new RectangleF(Ui.D(5), y + (lineH - Ui.D(15)) / 2f, Ui.D(15), Ui.D(15));
+                Shapes.FillRound(g, Ui.Alpha(Theme.Gold, breakpoints.Contains(l) ? 120 : 220), badge, Ui.D(4));
+                Shapes.Text(g, bm.Key.ToString(), Theme.UiSmall, Rectangle.Round(badge), Theme.Ink, Shapes.Center);
+            }
             Severity sev;
             if (errorLines.TryGetValue(l, out sev))
                 using (var b = new SolidBrush(sev == Severity.Error ? Theme.Red : sev == Severity.Warning ? Theme.Gold : Theme.Blue))

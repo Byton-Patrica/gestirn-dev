@@ -27,7 +27,8 @@ internal sealed class DevProject
     public bool IsCpp = true;
     public string CompilerFlags = "", CppFlags = "", LinkerFlags = "", IncludesRaw = "", LibsRaw = "";
     public string ObjectOutput = "", ExeOutput = "", OverrideOutputName = "";
-    public bool OverrideOutput;
+    public bool OverrideOutput, UseCustomMakefile;
+    public string CustomMakefile = "";
     public readonly List<ProjectUnit> Units = new List<ProjectUnit>();
 
     public string Directory { get { return Path.GetDirectoryName(FilePath); } }
@@ -151,6 +152,8 @@ internal sealed class DevProject
         p.ExeOutput = p.Get("Project", "ExeOutput");
         p.OverrideOutput = p.Get("Project", "OverrideOutput", "0") == "1";
         p.OverrideOutputName = p.Get("Project", "OverrideOutputName");
+        p.UseCustomMakefile = p.Get("Project", "UseCustomMakefile", "0") == "1";
+        p.CustomMakefile = p.Get("Project", "CustomMakefile");
         int count;
         int.TryParse(p.Get("Project", "UnitCount", "0"), out count);
         for (int i = 1; i <= count; i++)
@@ -185,6 +188,8 @@ internal sealed class DevProject
         Set("Project", "ExeOutput", ExeOutput);
         Set("Project", "OverrideOutput", OverrideOutput ? "1" : "0");
         Set("Project", "OverrideOutputName", OverrideOutputName);
+        Set("Project", "UseCustomMakefile", UseCustomMakefile ? "1" : "0");
+        Set("Project", "CustomMakefile", CustomMakefile);
         Set("Project", "UnitCount", Units.Count.ToString());
         sections.RemoveAll(s => Regex.IsMatch(s.Key, "^Unit\\d+$", RegexOptions.IgnoreCase));
         for (int i = 0; i < Units.Count; i++)
@@ -365,17 +370,19 @@ internal static class Symbols
     private static readonly Regex FuncDecl = new Regex(@"^\s*((?:[\w:<>,\*&~]+\s+)*?[\w:<>,\*&~]+[\s\*&]+)?([A-Za-z_~][\w~]*(?:::[A-Za-z_~][\w~]*)*)\s*\(([^;]*)\)\s*(?:const\s*)?(?:noexcept\s*)?(?:override\s*)?(?:->\s*[\w:<>]+\s*)?(\{.*)?$", RegexOptions.Compiled);
     private static readonly Regex Define = new Regex(@"^\s*#\s*define\s+([A-Za-z_]\w*)", RegexOptions.Compiled);
 
-    public static List<SymbolInfo> Parse(CodeEditor editor)
+    public static List<SymbolInfo> Parse(CodeEditor editor) { return Parse(editor.LineText, editor.LineCount); }
+
+    public static List<SymbolInfo> Parse(Func<int, string> lineAt, int lineCount)
     {
         var result = new List<SymbolInfo>();
         var stack = new List<string>();
         var tokens = new List<Token>();
         int state = 0;
         string pending = null;
-        int count = Math.Min(editor.LineCount, 30000);
+        int count = Math.Min(lineCount, 30000);
         for (int l = 0; l < count; l++)
         {
-            string raw = editor.LineText(l);
+            string raw = lineAt(l);
             int startState = state;
             state = CppSyntax.Tokenize(raw, state, tokens);
             var code = new StringBuilder(raw);

@@ -5,8 +5,45 @@
 Gestirn dev is a modern, lightweight C/C++ IDE for Windows, built from the
 Bloodshed/Orwell Dev-C++ source line. It keeps what made Dev-C++ easy (one
 window, the bundled MinGW compiler, F9/F11, `.dev` projects and templates) and
-adds the editing and debugging comfort of a current tool. The whole program is a
-425 KB executable on the .NET Framework that ships with Windows.
+adds the editing and debugging comfort of a current tool. It runs on its own: the
+download includes the MinGW64 compiler, gdb debugger and AStyle formatter, so
+Dev-C++ does not need to be installed.
+
+## Download
+
+**[Gestirn dev 0.51 for Windows (64-bit, includes compiler)](https://github.com/Byton-Patrica/gestirn-dev/releases/download/v0.51/Gestirn-dev-0.51-win64.zip)**
+— unzip anywhere and run `Gestirn-dev.exe`. Nothing else to install.
+
+- [Lite package without the compiler](https://github.com/Byton-Patrica/gestirn-dev/releases/download/v0.51/Gestirn-dev-0.51-lite.zip)
+  (uses g++ from `PATH`, MSYS2 or an existing Dev-C++).
+- [All releases](https://github.com/Byton-Patrica/gestirn-dev/releases)
+
+The green "Code → Download ZIP" button on GitHub only gives the source code.
+
+## 0.51
+
+- **Standalone**: the MinGW64 toolchain (g++/gcc 4.9.2, gdb, mingw32-make,
+  windres) ships inside the package and is preferred automatically; Dev-C++ can
+  be uninstalled.
+- **Real terminal for AI agents**: a ConPTY terminal with full colour, cursor
+  control and raw key input, so Claude Code, Codex CLI, Gemini CLI and other
+  agents, REPLs and TUI programs work as in Windows Terminal. Several sessions
+  as tabs; PowerShell, Command Prompt and Git Bash; detected AI agents start
+  from the ▾ launcher; the bundled g++ is on the terminal `PATH`. Open it in the
+  bottom panel or move it to the sidebar (button on the terminal, Terminal menu,
+  or Settings). Ctrl+C/Ctrl+V copy and paste with a selection, right-click
+  copies or pastes, Shift+PgUp/PgDn scrolls history.
+- **Light and dark themes** (or follow Windows), switched live with Ctrl+Alt+T.
+- **More animation**: click ripples, a gliding caret, pixel bursts after a
+  successful build, a shake on errors, cards that rise in one by one and views
+  that slide in. Turn rich animations off in Settings for a calmer, lighter UI.
+- **More of Dev-C++**: Project menu and Project Options (type, compiler and
+  linker flags, include/library folders, output folders, custom Makefile),
+  Insert menu (date, file header, include guard, main, class), syntax check
+  (Ctrl+F9), program arguments, bookmarks (Ctrl+Shift+1…9 / Ctrl+1…9, F2 next),
+  go to definition (Ctrl+Click, Ctrl+Shift+G), print, export to HTML, and files
+  kept in their original GBK encoding (click the encoding in the status bar to
+  switch).
 
 ## 0.5
 
@@ -75,17 +112,13 @@ Settings live in `%APPDATA%\Gestirn dev`. Create a `data` folder next to
 `Gestirn-dev.exe` to keep everything beside the program instead (portable
 mode), or set `GESTIRN_HOME`.
 
-## Download
-
-The [v0.11 GitHub Release](https://github.com/Byton-Patrica/gestirn-dev/releases/tag/v0.11)
-is the last published package. Build 0.5 from source as described below; it
-needs a g++ toolchain such as the one bundled with Dev-C++ 5.11.
-
 ## Building from source
 
 Run `build.cmd` (or `build.ps1`). It uses the Roslyn C# compiler from Visual
 Studio Build Tools and writes a ready-to-run folder to `dist\Gestirn-dev`
-containing `Gestirn-dev.exe`, `GestirnRun.exe`, AStyle and the templates.
+containing `Gestirn-dev.exe`, `GestirnRun.exe`, AStyle, the templates and a
+MinGW64 toolchain copied from `-CompilerSource` (default: Dev-C++'s MinGW64).
+`build.ps1 -Package` also writes the release zips.
 `GestirnDev/GestirnDev.csproj` builds the same sources with the .NET SDK.
 
 Source layout:
@@ -96,11 +129,13 @@ Source layout:
 | `GestirnDev/Editor` | Code editor control, C/C++ tokenizer, completion |
 | `GestirnDev/Core` | Settings, toolchain and builds, `.dev` projects, gdb debugger |
 | `GestirnDev/Shell` | Main window, panels, palette, dialogs |
+| `GestirnDev/Terminal` | ConPTY pseudo console and VT/xterm terminal emulator |
 | `GestirnRun` | Console runner |
 | `Source` | Original Delphi Dev-C++ IDE (needs Delphi 6/7) |
 
 ## Earlier versions
 
+- **0.5** — new editor, debugger, projects, autosave and sessions.
 - **0.12** — compile and run from the editor, error navigation, tabs.
 - **0.11** — code completion with Ctrl+Space and an embedded terminal.
 

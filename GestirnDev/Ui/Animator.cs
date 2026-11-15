@@ -27,6 +27,9 @@ internal static class Animator
     private static readonly List<Action<double>> tickers = new List<Action<double>>();
     private static readonly Stopwatch clock = Stopwatch.StartNew();
 
+    // When true (rich animations off in Settings) every tween jumps straight to its end.
+    public static bool Reduced;
+
     static Animator()
     {
         timer.Tick += (_, _) => Tick();
@@ -86,13 +89,21 @@ internal sealed class AnimatedFloat
     public event Action Changed;
     public event Action Finished;
 
-    public void To(float target, int milliseconds, Func<float, float> ease = null)
+    public void To(float target, int milliseconds, Func<float, float> ease = null, int delay = 0)
     {
+        if (Animator.Reduced)
+        {
+            Value = from = to = target;
+            Running = false;
+            if (Changed != null) Changed();
+            if (Finished != null) Finished();
+            return;
+        }
         if (Math.Abs(target - to) < 0.0001f && Running) return;
         if (Math.Abs(target - Value) < 0.0001f && !Running) { to = target; return; }
         from = Value;
         to = target;
-        start = Animator.Now;
+        start = Animator.Now + delay;
         duration = Math.Max(1, milliseconds);
         easing = ease ?? Ease.OutCubic;
         Running = true;
@@ -109,6 +120,7 @@ internal sealed class AnimatedFloat
     internal bool Step(double now)
     {
         if (!Running) return false;
+        if (now < start) return true;
         float t = (float)Math.Min(1.0, (now - start) / duration);
         Value = from + (to - from) * easing(t);
         if (t >= 1f) { Value = to; Running = false; }

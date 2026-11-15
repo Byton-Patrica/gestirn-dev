@@ -62,6 +62,11 @@ internal sealed class AppSettings
     public bool AutoPairs = true;
     public bool RestoreSession = true;
     public bool FormatOnSave;
+    public string Theme = "auto";
+    public bool Animations = true;
+    public string TerminalShell = "auto";
+    public bool TerminalInSidebar;
+    public string ProgramArgs = "";
 
     public string Workspace = "";
     public string Project = "";
@@ -118,6 +123,11 @@ internal sealed class AppSettings
                     case "AutoPairs": s.AutoPairs = v != "0"; break;
                     case "RestoreSession": s.RestoreSession = v != "0"; break;
                     case "FormatOnSave": s.FormatOnSave = v == "1"; break;
+                    case "Theme": s.Theme = v.Length > 0 ? v : "auto"; break;
+                    case "Animations": s.Animations = v != "0"; break;
+                    case "TerminalShell": s.TerminalShell = v.Length > 0 ? v : "auto"; break;
+                    case "TerminalInSidebar": s.TerminalInSidebar = v == "1"; break;
+                    case "ProgramArgs": s.ProgramArgs = v; break;
                     case "Workspace": s.Workspace = v; break;
                     case "Project": s.Project = v; break;
                     case "Recent": if (v.Length > 0) s.RecentFiles.Add(v); break;
@@ -165,6 +175,8 @@ internal sealed class AppSettings
             "InsertSpaces=" + (InsertSpaces ? "1" : "0"), "AutoSave=" + (AutoSave ? "1" : "0"), "AutoSaveDelay=" + AutoSaveDelay,
             "AutoComplete=" + (AutoComplete ? "1" : "0"), "AutoPairs=" + (AutoPairs ? "1" : "0"),
             "RestoreSession=" + (RestoreSession ? "1" : "0"), "FormatOnSave=" + (FormatOnSave ? "1" : "0"),
+            "Theme=" + Theme, "Animations=" + (Animations ? "1" : "0"), "TerminalShell=" + TerminalShell,
+            "TerminalInSidebar=" + (TerminalInSidebar ? "1" : "0"), "ProgramArgs=" + ProgramArgs,
             "Workspace=" + Workspace, "Project=" + Project,
             "SidebarWidth=" + SidebarWidth, "PanelHeight=" + PanelHeight, "SidebarVisible=" + (SidebarVisible ? "1" : "0"),
             "PanelVisible=" + (PanelVisible ? "1" : "0"), "SidebarView=" + SidebarView,

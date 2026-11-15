@@ -12,7 +12,7 @@ namespace GestirnDev
 {
 internal sealed partial class MainForm : Form
 {
-    public const string Version = "0.5";
+    public const string Version = "0.51";
     public static MainForm Instance;
 
     private readonly AppSettings settings;
@@ -80,6 +80,13 @@ internal sealed partial class MainForm : Form
 
         RestoreBounds2();
         BuildChrome();
+        if (settings.TerminalInSidebar)
+        {
+            bottom.Controls.Remove(terminal);
+            sidebar.Controls.Add(terminal);
+            terminal.InSidebar = true;
+            terminal.Visible = false;
+        }
         BuildCommands();
         toasts = new ToastHost(this) { BottomInset = Ui.D(34) };
         completion.OtherDocumentWords = () => docs.Where(d => d != active).SelectMany(d => d.Editor.Words()).Distinct().Take(4000);
@@ -174,11 +181,13 @@ internal sealed partial class MainForm : Form
         rail.Add("search", "search", L.T("Search (Ctrl+Shift+F)", "搜索 (Ctrl+Shift+F)"));
         rail.Add("outline", "outline", L.T("Outline (Ctrl+Shift+O)", "大纲 (Ctrl+Shift+O)"));
         rail.Add("debug", "debug", L.T("Run and Debug", "运行和调试"));
+        rail.Add("terminal", "term", L.T("Terminal (Ctrl+`)", "终端 (Ctrl+`)"));
         rail.Add("settings", "gear", L.T("Settings (Ctrl+,)", "设置 (Ctrl+,)"));
         rail.ItemClicked += OnRailClicked;
 
         foreach (Control p in new Control[] { explorer, outline, search, debugPanel }) { p.Visible = false; sidebar.Controls.Add(p); }
         sidebar.Resize += (_, _) => LayoutSidebar();
+        viewSlide.Changed += LayoutSidebar;
         explorer.FileOpened += path => OpenFile(path);
         explorer.OpenFolderRequested += OpenFolderDialog;
         explorer.NewProjectRequested += NewProject;
@@ -196,7 +205,7 @@ internal sealed partial class MainForm : Form
 
         sideHandle.Dragged += d =>
         {
-            settings.SidebarWidth = Math.Max(180, Math.Min(600, settings.SidebarWidth + (int)(d / Ui.Scale)));
+            settings.SidebarWidth = Math.Max(180, Math.Min(1100, settings.SidebarWidth + (int)(d / Ui.Scale)));
             LayoutShell();
         };
         panelHandle.Dragged += d =>
@@ -242,6 +251,9 @@ internal sealed partial class MainForm : Form
             var d = Toolchain.ParseDiagnostics(line, project != null ? project.Directory : active != null && active.Path != null ? Path.GetDirectoryName(active.Path) : workspace ?? "").FirstOrDefault();
             if (d != null) GoToDiagnostic(d);
         };
+        terminal.ExtraEnvironment = TerminalEnvironment;
+        terminal.DefaultShell = settings.TerminalShell;
+        terminal.MoveRequested += PlaceTerminal;
         terminal.StartFolder = () => workspace ?? (active != null && active.Path != null ? Path.GetDirectoryName(active.Path) : null);
 
         status.SegmentClicked += OnStatusClicked;
@@ -353,7 +365,7 @@ internal sealed partial class MainForm : Form
 
     private void LayoutSidebar()
     {
-        var inner = new Rectangle(Ui.D(4), Ui.D(4), Math.Max(0, sidebar.Width - Ui.D(8)), Math.Max(0, sidebar.Height - Ui.D(8)));
+        var inner = new Rectangle(Ui.D(4) + (int)(viewSlide.Value * Ui.D(26)), Ui.D(4), Math.Max(0, sidebar.Width - Ui.D(8)), Math.Max(0, sidebar.Height - Ui.D(8)));
         foreach (Control c in sidebar.Controls) c.Bounds = inner;
     }
 
@@ -374,18 +386,22 @@ internal sealed partial class MainForm : Form
         panelClose.SetBounds(w - Ui.D(36), Ui.D(8), Ui.D(26), Ui.D(26));
         panelClear.SetBounds(w - Ui.D(64), Ui.D(8), Ui.D(26), Ui.D(26));
         var area = new Rectangle(Ui.D(4), Ui.D(40), Math.Max(10, w - Ui.D(8)), Math.Max(10, h - Ui.D(44)));
-        output.Bounds = problems.Bounds = terminal.Bounds = area;
+        output.Bounds = problems.Bounds = area;
+        if (terminal.Parent == bottom) terminal.Bounds = area;
         panelTabs.Select(panelTabs.Active, false);
     }
 
     private void ShowView(string id, bool animate = true)
     {
         if (id == null || id == "settings") id = "explorer";
+        if (id == "terminal" && terminal.Parent != sidebar) id = "explorer";
+        if (animate && id != settings.SidebarView) { viewSlide.Snap(1f); viewSlide.To(0f, 260); }
         settings.SidebarView = id;
         explorer.Visible = id == "explorer";
         search.Visible = id == "search";
         outline.Visible = id == "outline";
         debugPanel.Visible = id == "debug";
+        if (terminal.Parent == sidebar) terminal.Visible = id == "terminal";
         rail.Active = id;
         LayoutSidebar();
         foreach (Control c in sidebar.Controls) if (c.Visible) { c.PerformLayout(); c.Invalidate(true); }
@@ -396,6 +412,7 @@ internal sealed partial class MainForm : Form
     private void OnRailClicked(string id)
     {
         if (id == "settings") { OpenSettings(); return; }
+        if (id == "terminal" && terminal.Parent != sidebar) { ShowPanel("terminal"); return; }
         if (id == settings.SidebarView && settings.SidebarVisible) { ToggleSidebar(false); return; }
         ShowView(id);
         ToggleSidebar(true);
@@ -415,10 +432,18 @@ internal sealed partial class MainForm : Form
 
     private void ShowPanel(string id, bool reveal = true)
     {
+        if (id == "terminal" && terminal.Parent == sidebar)
+        {
+            if (!reveal) return;
+            ShowView("terminal");
+            ToggleSidebar(true);
+            terminal.FocusInput();
+            return;
+        }
         panelTabs.Select(id, true);
         output.Visible = id == "output";
         problems.Visible = id == "problems";
-        terminal.Visible = id == "terminal";
+        if (terminal.Parent == bottom) terminal.Visible = id == "terminal";
         panelClear.Visible = id != "problems";
         LayoutBottom();
         foreach (Control c in new Control[] { output, problems, terminal }) if (c.Visible) { c.PerformLayout(); c.Invalidate(true); }
@@ -469,6 +494,7 @@ internal sealed partial class MainForm : Form
         };
         ed.BreakpointToggled += line => OnBreakpointToggled(doc, line);
         ed.EscapePressed += (_, _) => { if (findBar.Visible) findBar.Close(); };
+        ed.DefinitionRequested += word => GoToDefinition(word);
     }
 
     public EditorDoc OpenFile(string path, int line = -1, int col = 0)
@@ -489,7 +515,7 @@ internal sealed partial class MainForm : Form
                 toasts.Show(L.T("Can't open file", "无法打开文件"), ex.Message, ToastKind.Error);
                 return null;
             }
-            doc = new EditorDoc(path, CreateEditor()) { CrLf = text.Contains("\r\n") || !text.Contains("\n") };
+            doc = new EditorDoc(path, CreateEditor()) { CrLf = text.Contains("\r\n") || !text.Contains("\n"), Gbk = !IsUtf8File(path) };
             doc.Editor.LoadText(text);
             doc.Editor.MarkSaved();
             doc.DiskTime = File.GetLastWriteTimeUtc(path);
@@ -508,6 +534,14 @@ internal sealed partial class MainForm : Form
     {
         var blank = docs.FirstOrDefault(d => d.Path == null && !d.Dirty && d.Editor.LineCount == 1 && d.Editor.LineText(0).Length == 0);
         if (blank != null && docs.Count == 1) RemoveDoc(blank);
+    }
+
+    // True when the file is plain ASCII or valid UTF-8; otherwise it is kept in the system code page (GBK).
+    private static bool IsUtf8File(string path)
+    {
+        try { new UTF8Encoding(false, true).GetString(File.ReadAllBytes(path)); return true; }
+        catch (DecoderFallbackException) { return false; }
+        catch (IOException) { return true; }
     }
 
     public static string ReadSource(string path)
@@ -619,7 +653,7 @@ internal sealed partial class MainForm : Form
     {
         try
         {
-            File.WriteAllText(path, doc.Editor.GetText(doc.CrLf ? "\r\n" : "\n"), new UTF8Encoding(false));
+            File.WriteAllText(path, doc.Editor.GetText(doc.CrLf ? "\r\n" : "\n"), doc.Gbk ? Toolchain.ConsoleEncoding : new UTF8Encoding(false));
         }
         catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
         {
@@ -924,7 +958,7 @@ internal sealed partial class MainForm : Form
         status.Set("pos", L.T("Ln " + (c.Line + 1) + ", Col " + (c.Col + 1), "行 " + (c.Line + 1) + "，列 " + (c.Col + 1)) + sel);
         status.Set("indent", (settings.InsertSpaces ? L.T("Spaces: ", "空格: ") : "Tab: ") + settings.TabSize);
         status.Set("eol", active.CrLf ? "CRLF" : "LF");
-        status.Set("enc", "UTF-8");
+        status.Set("enc", active.Gbk ? "GBK" : "UTF-8");
     }
 
     private void UpdateChrome()
@@ -994,6 +1028,37 @@ internal sealed partial class MainForm : Form
             ticker = now => { phase = now; Invalidate(new Rectangle(0, 0, Ui.D(56), Height)); };
         }
 
+        private readonly List<float[]> particles = new List<float[]>();
+        private readonly Random rnd = new Random();
+        private Action<double> particleTicker;
+        private double lastFrame;
+
+        // A burst of logo-coloured pixels: x, y, vx, vy, born, colour index.
+        public void Burst(Point origin)
+        {
+            if (Animator.Reduced) return;
+            double now = Animator.Now;
+            for (int i = 0; i < 26; i++)
+            {
+                double a = rnd.NextDouble() * Math.PI * 2, speed = (0.25 + rnd.NextDouble() * 0.55) * Ui.Scale;
+                particles.Add(new[] { origin.X, origin.Y, (float)(Math.Cos(a) * speed), (float)(Math.Sin(a) * speed - 0.35 * Ui.Scale), (float)now, rnd.Next(3) });
+            }
+            if (particleTicker == null)
+            {
+                lastFrame = now;
+                particleTicker = t =>
+                {
+                    float dt = (float)Math.Min(40, t - lastFrame);
+                    lastFrame = t;
+                    foreach (var p in particles) { p[0] += p[2] * dt; p[1] += p[3] * dt; p[3] += 0.0016f * Ui.Scale * dt; }
+                    particles.RemoveAll(p => t - p[4] > 900);
+                    Invalidate();
+                    if (particles.Count == 0) { Animator.RemoveTicker(particleTicker); particleTicker = null; }
+                };
+                Animator.AddTicker(particleTicker);
+            }
+        }
+
         public bool Busy
         {
             get { return busy; }
@@ -1030,6 +1095,14 @@ internal sealed partial class MainForm : Form
                     if (r.Contains(x, y)) continue;
                     using (var b = new SolidBrush(i % 2 == 0 ? Theme.Lime : Theme.Orange)) g.FillRectangle(b, x, y, px, px);
                 }
+            }
+            double now2 = Animator.Now;
+            int size2 = Math.Max(2, Ui.D(3));
+            foreach (var p in particles)
+            {
+                float life = (float)((now2 - p[4]) / 900.0);
+                var c = p[5] == 0 ? Theme.Lime : p[5] == 1 ? Theme.Orange : Theme.Gold;
+                using (var b = new SolidBrush(Ui.Alpha(c, (int)(255 * Math.Max(0, 1 - life))))) g.FillRectangle(b, p[0], p[1], size2, size2);
             }
             using (var pen = new Pen(Theme.EdgeSoft)) g.DrawLine(pen, 0, Height - 1, Width, Height - 1);
         }
