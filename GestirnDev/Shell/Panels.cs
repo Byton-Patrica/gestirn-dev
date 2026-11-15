@@ -856,6 +856,180 @@ internal sealed class ProblemsView : Panel
     }
 }
 
+// Performance analysis results (gprof flat profile) with bars that grow in, rank by rank.
+internal sealed class ProfileView : Panel
+{
+    private readonly VirtualList list = new VirtualList();
+    private readonly AnimatedFloat grow = new AnimatedFloat(1f), shine = new AnimatedFloat(1f);
+    private ProfileReport report;
+    private List<ProfileEntry> rows = new List<ProfileEntry>();
+    private double maxValue = 1;
+    public event Action<ProfileEntry> FunctionActivated;
+    public bool Waiting;
+    public string WaitingText;
+
+    public ProfileView()
+    {
+        BackColor = Theme.Panel;
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+        list.RowHeight = Ui.D(34);
+        list.EmptyText = L.T("No profile yet. Build → Profile runs your program; when it exits, the time spent in each function shows here.",
+                             "还没有性能数据。点 编译 → 性能分析 运行程序，程序结束后这里会列出每个函数的耗时。");
+        list.DrawRow = DrawRow;
+        list.RowActivated += i => { if (i < rows.Count && FunctionActivated != null) FunctionActivated(rows[i]); };
+        list.RowClicked += (i, e) => { if (e.Clicks > 1 && i < rows.Count && FunctionActivated != null) FunctionActivated(rows[i]); };
+        grow.Changed += () => { list.Invalidate(); Invalidate(); };
+        shine.Changed += list.Invalidate;
+        Controls.Add(list);
+        Resize += (_, _) => LayoutList();
+        Animator.AddTicker(Tick);
+    }
+
+    public ProfileReport Report { get { return report; } }
+    public int Count { get { return rows.Count; } }
+
+    private int HeaderHeight { get { return Ui.D(46); } }
+
+    private void LayoutList() { list.SetBounds(0, HeaderHeight, Width, Math.Max(10, Height - HeaderHeight)); }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) Animator.RemoveTicker(Tick);
+        base.Dispose(disposing);
+    }
+
+    private void Tick(double now) { if (Waiting && Visible) Invalidate(new Rectangle(0, 0, Width, HeaderHeight)); }
+
+    public void Clear()
+    {
+        report = null;
+        rows = new List<ProfileEntry>();
+        list.Reset(0, false);
+        Invalidate();
+    }
+
+    public void Set(ProfileReport r)
+    {
+        report = r;
+        Waiting = false;
+        rows = r.Entries.Where(e => r.HasSamples ? e.Self > 0 || e.Calls > 0 : e.Calls > 0).ToList();
+        maxValue = rows.Count == 0 ? 1 : r.HasSamples ? Math.Max(0.0001, rows.Max(e => e.Self)) : Math.Max(1, rows.Max(e => e.Calls));
+        LayoutList();
+        list.Reset(rows.Count, false);
+        grow.Snap(0f);
+        grow.To(1f, 1100, Ease.OutCubic, 80);
+        shine.Snap(0f);
+        shine.To(1f, 900, Ease.InOutCubic, 900);
+        Invalidate();
+    }
+
+    private float RowProgress(int i)
+    {
+        float t = grow.Value * (1f + Math.Min(12, rows.Count) * 0.07f) - Math.Min(i, 12) * 0.07f;
+        return Ease.OutBack(Math.Max(0f, Math.Min(1f, t)));
+    }
+
+    private static string Seconds(double s) { return s >= 1 ? s.ToString("0.00") + " s" : (s * 1000).ToString("0") + " ms"; }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.Clear(BackColor);
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        int x = Ui.D(14);
+        var box = new Rectangle(x, Ui.D(9), Ui.D(28), Ui.D(28));
+        Shapes.FillRound(g, Ui.Alpha(Theme.Orange, 40), box, Ui.D(8));
+        if (Waiting) Glyphs.Spinner(g, Rectangle.Inflate(box, -Ui.D(8), -Ui.D(8)), (Animator.Now / 900.0) % 1.0, Theme.OrangeHot, Theme.Orange);
+        else Glyphs.Draw(g, "profile", Rectangle.Inflate(box, -Ui.D(8), -Ui.D(8)), Theme.Orange);
+        x += Ui.D(38);
+        string title, sub;
+        if (Waiting)
+        {
+            title = WaitingText ?? L.T("Profiling…", "正在分析…");
+            sub = L.T("Use the program as usual; results appear when it exits.", "像平常一样使用程序，程序退出后自动显示结果。");
+        }
+        else if (report == null)
+        {
+            title = L.T("Performance analysis", "性能分析");
+            sub = L.T("Finds the functions where your program spends its time (gprof).", "找出程序把时间花在了哪些函数上（gprof）。");
+        }
+        else
+        {
+            title = Path.GetFileName(report.Exe) + "  ·  " + (report.HasSamples ? L.T("total ", "总计 ") + Seconds(report.TotalSeconds) : L.T("ran too briefly to sample time", "运行时间过短，未采样到耗时"));
+            sub = report.HasSamples
+                ? string.Format(L.T("{0} functions · sampled every {1} ms · double-click a row to jump to the code", "{0} 个函数 · 每 {1} ms 采样一次 · 双击行跳转到代码"), rows.Count, (report.SampleSeconds * 1000).ToString("0.#"))
+                : L.T("Ranked by number of calls instead · profile longer work to get timings", "改为按调用次数排序 · 运行更耗时的任务可得到耗时数据");
+        }
+        int textRight = Width - Ui.D(12);
+        if (report != null && rows.Count > 0) textRight = Width - Ui.D(270);
+        Shapes.Text(g, title, Theme.UiSemi, new Rectangle(x, Ui.D(5), textRight - x, Ui.D(20)), Theme.Text, Shapes.Left);
+        Shapes.Text(g, sub, Theme.UiSmall, new Rectangle(x, Ui.D(24), textRight - x, Ui.D(18)), Theme.Muted, Shapes.Left);
+        if (report != null && rows.Count > 0)
+        {
+            int right = Width - Ui.D(18);
+            var hdr = Theme.UiSmall;
+            Shapes.Text(g, L.T("calls", "调用次数"), hdr, new Rectangle(right - Ui.D(250), Ui.D(26), Ui.D(110), Ui.D(18)), Theme.Faint, Shapes.Right);
+            Shapes.Text(g, L.T("self", "自身耗时"), hdr, new Rectangle(right - Ui.D(136), Ui.D(26), Ui.D(70), Ui.D(18)), Theme.Faint, Shapes.Right);
+            Shapes.Text(g, "%", hdr, new Rectangle(right - Ui.D(60), Ui.D(26), Ui.D(56), Ui.D(18)), Theme.Faint, Shapes.Right);
+        }
+        using (var pen = new Pen(Theme.EdgeSoft)) g.DrawLine(pen, Ui.D(10), HeaderHeight - 1, Width - Ui.D(10), HeaderHeight - 1);
+    }
+
+    private void DrawRow(Graphics g, int i, Rectangle r, bool hover, bool selected)
+    {
+        var e = rows[i];
+        VirtualList.RowBackground(g, r, hover, selected, list.Focused);
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        float p = RowProgress(i);
+        Color accent = i == 0 ? Theme.OrangeHot : i == 1 ? Theme.Orange : i == 2 ? Theme.Gold : Theme.Blue;
+        var badge = new Rectangle(r.X + Ui.D(14), r.Y + Ui.D(8), Ui.D(22), Ui.D(18));
+        Shapes.FillRound(g, Ui.Alpha(accent, i < 3 ? 60 : 30), badge, Ui.D(6));
+        Shapes.Text(g, (i + 1).ToString(), Theme.UiSmall, badge, i < 3 ? accent : Theme.TextDim, Shapes.Center);
+        int right = r.Right - Ui.D(18);
+        int nameX = badge.Right + Ui.D(10);
+        int barRight = right - Ui.D(262);
+        int nameW = Math.Max(Ui.D(80), Math.Min(Ui.D(320), (barRight - nameX) / 2));
+        Shapes.Text(g, e.Name, Theme.CodeSmall, new Rectangle(nameX, r.Y, nameW, r.Height), Theme.Text, Shapes.Left);
+        int bx = nameX + nameW + Ui.D(10), bw = Math.Max(Ui.D(30), barRight - bx);
+        var track = new RectangleF(bx, r.Y + r.Height / 2 - Ui.D(5), bw, Ui.D(10));
+        Shapes.FillRound(g, Ui.Alpha(Theme.Edge, 90), track, Ui.D(5));
+        double value = report.HasSamples ? e.Self : Math.Max(0, e.Calls);
+        float frac = (float)(value / maxValue) * p;
+        if (frac > 0.002f)
+        {
+            var fill = new RectangleF(track.X, track.Y, Math.Max(track.Height, track.Width * Math.Min(1.04f, frac)), track.Height);
+            using (var path = Shapes.Round(fill, track.Height / 2))
+            using (var brush = new System.Drawing.Drawing2D.LinearGradientBrush(new RectangleF(fill.X - 1, fill.Y, fill.Width + 2, fill.Height), Ui.Lerp(accent, Theme.Gold, 0.35f), accent, 0f))
+            {
+                g.FillPath(brush, path);
+                if (!Animator.Reduced && shine.Value > 0f && shine.Value < 1f)
+                {
+                    float sx = fill.X + (fill.Width + Ui.D(60)) * shine.Value - Ui.D(30);
+                    var old = g.Clip;
+                    g.SetClip(path, System.Drawing.Drawing2D.CombineMode.Intersect);
+                    using (var glow = new System.Drawing.Drawing2D.LinearGradientBrush(new RectangleF(sx - Ui.D(30), fill.Y, Ui.D(60), fill.Height), Color.White, Color.White, 0f))
+                    {
+                        var blend = new System.Drawing.Drawing2D.ColorBlend(3);
+                        blend.Colors = new[] { Color.FromArgb(0, 255, 255, 255), Color.FromArgb(150, 255, 255, 255), Color.FromArgb(0, 255, 255, 255) };
+                        blend.Positions = new[] { 0f, 0.5f, 1f };
+                        glow.InterpolationColors = blend;
+                        g.FillRectangle(glow, sx - Ui.D(30), fill.Y, Ui.D(60), fill.Height);
+                    }
+                    g.Clip = old;
+                }
+            }
+            if (!Animator.Reduced && p > 0.05f && p < 0.98f)
+                using (var b = new SolidBrush(Ui.Alpha(Theme.Gold, (int)(255 * (1 - p)))))
+                    g.FillRectangle(b, fill.Right - Ui.D(2), fill.Y - Ui.D(3), Ui.D(3), Ui.D(3));
+        }
+        string calls = e.Calls >= 0 ? e.Calls.ToString("N0") + (e.Recursive ? " ↻" : "") : "—";
+        Shapes.Text(g, calls, Theme.UiSmall, new Rectangle(right - Ui.D(250), r.Y, Ui.D(110), r.Height), Theme.TextDim, Shapes.Right);
+        Shapes.Text(g, report.HasSamples ? Seconds(e.Self) : "—", Theme.UiSmall, new Rectangle(right - Ui.D(136), r.Y, Ui.D(70), r.Height), Theme.TextDim, Shapes.Right);
+        string pct = report.HasSamples ? (e.Percent * Math.Min(1f, p)).ToString("0.0") + "%" : "";
+        Shapes.Text(g, pct, Theme.Ui9, new Rectangle(right - Ui.D(60), r.Y, Ui.D(56), r.Height), i < 3 ? accent : Theme.Text, Shapes.Right);
+    }
+}
+
 internal sealed class OutputView : Panel
 {
     public readonly RichTextBox Box = new RichTextBox();

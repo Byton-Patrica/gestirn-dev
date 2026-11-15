@@ -20,6 +20,7 @@ internal sealed class BuildOptions
     public string ExtraFlags = "";
     public string Optimization = "";
     public bool Debug;
+    public bool Profile;
     public bool StaticLink;
     public string ExecCharset = "auto";
 }
@@ -169,6 +170,7 @@ internal static class Toolchain
         sb.Append(CharsetFlags(source, o.ExecCharset));
         if (o.Debug) sb.Append("-g -O0 ");
         else if (!string.IsNullOrEmpty(o.Optimization)) sb.Append(o.Optimization).Append(' ');
+        if (o.Profile) sb.Append("-pg -fno-omit-frame-pointer -fno-inline-functions-called-once ");
         if (!string.IsNullOrEmpty(o.ExtraFlags)) sb.Append(o.ExtraFlags).Append(' ');
         return sb.ToString();
     }
@@ -226,7 +228,7 @@ internal static class Toolchain
         string exe = Path.Combine(dir, Path.GetFileNameWithoutExtension(source) + ".exe");
         outcome.ExePath = exe;
         if (!TryDelete(exe, outcome)) return outcome;
-        string args = CompileFlags(source, o) + Quote(Path.GetFileName(source)) + " -o " + Quote(Path.GetFileName(exe)) + (o.StaticLink ? " -static" : "");
+        string args = CompileFlags(source, o) + Quote(Path.GetFileName(source)) + " -o " + Quote(Path.GetFileName(exe)) + (o.StaticLink ? " -static" : "") + (o.Profile ? " -pg" : "");
         outcome.Log.AppendLine(Path.GetFileName(CompilerFor(source, o.Compiler)) + " " + args);
         var r = await RunTool(CompilerFor(source, o.Compiler), args, dir, started);
         outcome.Log.Append(r.Output);
@@ -290,7 +292,7 @@ internal static class Toolchain
         bool anyCpp = sources.Any(u => !IsC(u.FileName)) || project.IsCpp;
         var headers = project.Units.Where(u => !DevProject.IsSource(u.FileName)).Select(u => project.FullPath(u.FileName)).Where(File.Exists).ToList();
         DateTime newestHeader = headers.Count > 0 ? headers.Max(h => File.GetLastWriteTimeUtc(h)) : DateTime.MinValue;
-        string flagsStamp = string.Join("|", o.Standard, o.ExtraFlags, o.Optimization, o.Debug, project.CompilerFlags, project.CppFlags, project.Includes);
+        string flagsStamp = string.Join("|", o.Standard, o.ExtraFlags, o.Optimization, o.Debug, o.Profile, project.CompilerFlags, project.CppFlags, project.Includes);
         string stampFile = Path.Combine(objDir, ".gestirn-flags");
         bool flagsChanged = !File.Exists(stampFile) || File.ReadAllText(stampFile) != flagsStamp;
         if (flagsChanged) rebuild = true;
@@ -370,6 +372,7 @@ internal static class Toolchain
             if (project.Type == DevProject.TypeGui) la.Append("-mwindows ");
             if (project.Type == DevProject.TypeDll) la.Append("-shared ");
             if (o.Debug) la.Append("-g ");
+            if (o.Profile) la.Append("-pg ");
             if (o.StaticLink) la.Append("-static ");
             la.Append(project.LinkerFlags).Append(' ').Append(project.Libs);
             log(Path.GetFileName(linker) + " -o " + Path.GetFileName(exe));

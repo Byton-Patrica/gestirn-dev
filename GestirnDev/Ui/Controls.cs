@@ -255,6 +255,30 @@ internal sealed class PixelButton : Control
             using (var b = new SolidBrush(Ui.Alpha(rc, (int)(90 * (1f - ripple.Value))))) g.FillEllipse(b, rippleAt.X - r, rippleAt.Y - r, r * 2, r * 2);
             g.Restore(state);
         }
+        if (busy && Enabled && !Animator.Reduced)
+        {
+            // breathing outline plus a light band that sweeps across while the work runs
+            double s = 0.5 + 0.5 * Math.Sin(busyPhase * Math.PI * 1.4);
+            var ringColor = Kind == ButtonKind.Primary ? Theme.Gold : Theme.Orange;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            Shapes.StrokeRound(g, Ui.Alpha(ringColor, (int)(80 + 150 * s)), new RectangleF(rect.X + 0.75f, rect.Y + 0.75f, rect.Width - 1.5f, rect.Height - 1.5f), Ui.D(Radius), Math.Max(1.5f, Ui.Scale * 1.3f));
+            float sweep = (float)((busyPhase * 0.6) % 1.0);
+            float band = Math.Max(Ui.D(26), Width * 0.35f);
+            float sx = -band + sweep * (Width + band * 2);
+            var state = g.Save();
+            using (var clip = Shapes.Round(rect, Ui.D(Radius))) g.SetClip(clip);
+            using (var lg = new LinearGradientBrush(new RectangleF(sx - band / 2, 0, band, Height), Color.White, Color.White, 15f))
+            {
+                var tint = Kind == ButtonKind.Primary ? Color.White : Theme.Orange;
+                lg.InterpolationColors = new ColorBlend(3)
+                {
+                    Colors = new[] { Ui.Alpha(tint, 0), Ui.Alpha(tint, Kind == ButtonKind.Primary ? 95 : 55), Ui.Alpha(tint, 0) },
+                    Positions = new[] { 0f, 0.5f, 1f },
+                };
+                g.FillRectangle(lg, sx - band / 2, 0, band, Height);
+            }
+            g.Restore(state);
+        }
 
         int glyphSize = Ui.D(14);
         bool hasGlyph = Glyph != null || busy;

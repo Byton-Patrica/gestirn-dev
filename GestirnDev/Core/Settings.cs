@@ -67,6 +67,8 @@ internal sealed class AppSettings
     public string TerminalShell = "auto";
     public bool TerminalInSidebar;
     public string ProgramArgs = "";
+    public bool CheckUpdates = true;
+    public string SkippedVersion = "";
 
     public string Workspace = "";
     public string Project = "";
@@ -128,6 +130,8 @@ internal sealed class AppSettings
                     case "TerminalShell": s.TerminalShell = v.Length > 0 ? v : "auto"; break;
                     case "TerminalInSidebar": s.TerminalInSidebar = v == "1"; break;
                     case "ProgramArgs": s.ProgramArgs = v; break;
+                    case "CheckUpdates": s.CheckUpdates = v != "0"; break;
+                    case "SkippedVersion": s.SkippedVersion = v; break;
                     case "Workspace": s.Workspace = v; break;
                     case "Project": s.Project = v; break;
                     case "Recent": if (v.Length > 0) s.RecentFiles.Add(v); break;
@@ -177,6 +181,7 @@ internal sealed class AppSettings
             "RestoreSession=" + (RestoreSession ? "1" : "0"), "FormatOnSave=" + (FormatOnSave ? "1" : "0"),
             "Theme=" + Theme, "Animations=" + (Animations ? "1" : "0"), "TerminalShell=" + TerminalShell,
             "TerminalInSidebar=" + (TerminalInSidebar ? "1" : "0"), "ProgramArgs=" + ProgramArgs,
+            "CheckUpdates=" + (CheckUpdates ? "1" : "0"), "SkippedVersion=" + SkippedVersion,
             "Workspace=" + Workspace, "Project=" + Project,
             "SidebarWidth=" + SidebarWidth, "PanelHeight=" + PanelHeight, "SidebarVisible=" + (SidebarVisible ? "1" : "0"),
             "PanelVisible=" + (PanelVisible ? "1" : "0"), "SidebarView=" + SidebarView,

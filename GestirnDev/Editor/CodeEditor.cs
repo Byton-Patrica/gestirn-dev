@@ -79,6 +79,9 @@ internal sealed class CodeEditor : Control
     private float glideTargetX = -1, glideTargetY = -1;
     private readonly List<Diagnostic> diagnostics = new List<Diagnostic>();
     private int execLine = -1;
+    private readonly AnimatedFloat execArrive = new AnimatedFloat(1f);
+    private Action<double> execTicker;
+    private double execFrame;
 
     private string searchTerm = "";
     private bool searchCase, searchWord;
@@ -1119,7 +1122,26 @@ internal sealed class CodeEditor : Control
     public int ExecLine
     {
         get { return execLine; }
-        set { execLine = value; if (value >= 0) GoTo(value, caret.Line == value ? caret.Col : 0); Invalidate(); }
+        set
+        {
+            bool moved = value != execLine;
+            execLine = value;
+            if (value >= 0) GoTo(value, caret.Line == value ? caret.Col : 0);
+            if (execTicker == null)
+            {
+                // the paused line breathes, and a light sweeps across it each time execution stops on a new line
+                execTicker = now =>
+                {
+                    if (execLine < 0 || !Visible || Animator.Reduced || now - execFrame < 33) return;
+                    execFrame = now;
+                    Invalidate();
+                };
+                execArrive.Changed += Invalidate;
+            }
+            if (value >= 0) { Animator.AddTicker(execTicker); if (moved && !Animator.Reduced) { execArrive.Snap(0f); execArrive.To(1f, 520, Ease.OutCubic); } }
+            else Animator.RemoveTicker(execTicker);
+            Invalidate();
+        }
     }
 
     public void SetDiagnostics(IEnumerable<Diagnostic> list)
@@ -1847,6 +1869,7 @@ internal sealed class CodeEditor : Control
         {
             StopBlink();
             Animator.RemoveTicker(dragTicker);
+            if (execTicker != null) Animator.RemoveTicker(execTicker);
             hoverTimer.Dispose();
             barFade.Dispose();
             if (font != null) font.Dispose();
@@ -1911,7 +1934,21 @@ internal sealed class CodeEditor : Control
         {
             int y = (int)Math.Round(l * lineH - sy);
             if (l == execLine)
-                using (var b = new SolidBrush(Ui.Alpha(Theme.Orange, 46))) g.FillRectangle(b, gutterW, y, ClientSize.Width - gutterW, lineH);
+            {
+                double breath = Animator.Reduced ? 0.5 : 0.5 + 0.5 * Math.Sin(Animator.Now / 420.0);
+                using (var b = new SolidBrush(Ui.Alpha(Theme.Orange, (int)(34 + 30 * breath)))) g.FillRectangle(b, gutterW, y, ClientSize.Width - gutterW, lineH);
+                int glowW = Ui.D(180);
+                using (var lg = new System.Drawing.Drawing2D.LinearGradientBrush(new Rectangle(gutterW, y, glowW, lineH), Ui.Alpha(Theme.OrangeHot, (int)(70 + 60 * breath)), Ui.Alpha(Theme.OrangeHot, 0), 0f))
+                    g.FillRectangle(lg, gutterW, y, glowW, lineH);
+                if (execArrive.Value < 1f)
+                {
+                    float w = ClientSize.Width - gutterW, band = Ui.D(140);
+                    float bx = gutterW - band + execArrive.Value * (w + band);
+                    var blend = new System.Drawing.Drawing2D.ColorBlend(3) { Colors = new[] { Ui.Alpha(Theme.Gold, 0), Ui.Alpha(Theme.Gold, 120), Ui.Alpha(Theme.Gold, 0) }, Positions = new[] { 0f, 0.5f, 1f } };
+                    using (var lg = new System.Drawing.Drawing2D.LinearGradientBrush(new RectangleF(bx, y, band, lineH), Color.White, Color.White, 0f) { InterpolationColors = blend })
+                        g.FillRectangle(lg, bx, y, band, lineH);
+                }
+            }
             else if (l == caret.Line && !sel)
                 using (var b = new SolidBrush(Theme.CurrentLine)) g.FillRectangle(b, gutterW, y, ClientSize.Width - gutterW, lineH);
 
@@ -2083,7 +2120,11 @@ internal sealed class CodeEditor : Control
                 isCaretLine ? Theme.TextDim : Theme.GutterText, flags);
             var dot = new Rectangle(Ui.D(7), y + (lineH - Ui.D(12)) / 2, Ui.D(12), Ui.D(12));
             if (breakpoints.Contains(l)) Glyphs.Draw(g, "breakpoint", dot, Theme.Red);
-            if (l == execLine) Glyphs.Draw(g, "arrow", dot, Theme.Orange);
+            if (l == execLine)
+            {
+                int nudge = Animator.Reduced ? 0 : (int)Math.Round((0.5 + 0.5 * Math.Sin(Animator.Now / 420.0)) * Ui.D(2));
+                Glyphs.Draw(g, "arrow", new Rectangle(dot.X + nudge, dot.Y, dot.Width, dot.Height), Theme.OrangeHot);
+            }
             foreach (var bm in bookmarks)
             {
                 if (bm.Value != l) continue;

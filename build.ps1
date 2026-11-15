@@ -45,6 +45,8 @@ if (-not $NoCompiler) {
         if ($LASTEXITCODE -ge 8) { throw "Copying the compiler failed ($LASTEXITCODE)" }
         $global:LASTEXITCODE = 0
         Write-Host "Bundled compiler from $CompilerSource"
+    } elseif (Test-Path "$out\MinGW64\bin\g++.exe") {
+        Write-Host "Keeping the compiler already in $out\MinGW64 ($CompilerSource not found)"
     } else {
         Write-Warning "No compiler bundled: $CompilerSource\bin\g++.exe not found. Pass -CompilerSource <MinGW64 folder>."
     }

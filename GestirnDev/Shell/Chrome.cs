@@ -196,7 +196,8 @@ internal sealed class ActivityRail : Control
 {
     private readonly List<Tuple<string, string, string>> items = new List<Tuple<string, string, string>>();
     private readonly AnimatedFloat indicator = new AnimatedFloat(0f);
-    private int hover = -1;
+    private readonly AnimatedFloat pop = new AnimatedFloat(1f);
+    private int hover = -1, popIndex = -1;
     private string active;
     private readonly ToolTip tip = new ToolTip();
 
@@ -204,6 +205,7 @@ internal sealed class ActivityRail : Control
     {
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
         indicator.Changed += Invalidate;
+        pop.Changed += Invalidate;
         Cursor = Cursors.Hand;
     }
 
@@ -259,6 +261,7 @@ internal sealed class ActivityRail : Control
     {
         base.OnMouseDown(e);
         int i = HitIndex(e.Location);
+        if (i >= 0 && !Animator.Reduced) { popIndex = i; pop.Snap(0f); pop.To(1f, 520, Ease.OutCubic); }
         if (i >= 0 && ItemClicked != null) ItemClicked(items[i].Item1);
     }
 
@@ -277,7 +280,19 @@ internal sealed class ActivityRail : Control
             if (isActive) Shapes.FillRound(g, Theme.Raised, box, Ui.D(9));
             else if (i == hover) Shapes.FillRound(g, Ui.Alpha(Theme.Hover, 170), box, Ui.D(9));
             var glyph = new Rectangle(r.X + (r.Width - Ui.D(18)) / 2, r.Y + (r.Height - Ui.D(18)) / 2, Ui.D(18), Ui.D(18));
-            Glyphs.Draw(g, items[i].Item2, glyph, isActive ? Theme.Orange : i == hover ? Theme.Text : Theme.Muted);
+            var drawBox = glyph;
+            if (i == popIndex && pop.Value < 1f)
+            {
+                // the icon pops (grows, settles back) and sends out a fading ring
+                float t = pop.Value;
+                int grow = (int)Math.Round(Ui.D(6) * Math.Sin(t * Math.PI) * (1f - t * 0.4f));
+                drawBox = Rectangle.Inflate(glyph, grow, grow);
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                float rr = Ui.D(10) + t * Ui.D(16);
+                using (var pen = new Pen(Ui.Alpha(Theme.Orange, (int)(200 * (1f - t))), Math.Max(1f, Ui.Scale * 1.5f * (1f - t * 0.5f))))
+                    g.DrawEllipse(pen, glyph.X + glyph.Width / 2f - rr, glyph.Y + glyph.Height / 2f - rr, rr * 2, rr * 2);
+            }
+            Glyphs.Draw(g, items[i].Item2, drawBox, isActive ? Theme.Orange : i == hover ? Theme.Text : Theme.Muted);
             if (Badges.Contains(items[i].Item1))
             {
                 g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -438,6 +453,7 @@ internal sealed class StatusBar : Control
 
     private readonly List<Segment> segments = new List<Segment>();
     private readonly AnimatedFloat flash = new AnimatedFloat(0f);
+    private readonly AnimatedFloat sweep = new AnimatedFloat(1f);
     private Color flashColor = Theme.Lime;
     private bool busy;
     private double phase;
@@ -448,6 +464,7 @@ internal sealed class StatusBar : Control
     {
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
         flash.Changed += Invalidate;
+        sweep.Changed += Invalidate;
         ticker = now => { phase = now; Invalidate(); };
     }
 
@@ -491,6 +508,7 @@ internal sealed class StatusBar : Control
         flashColor = color;
         flash.Snap(1f);
         flash.To(0f, 900, Ease.InOutCubic);
+        if (!Animator.Reduced) { sweep.Snap(0f); sweep.To(1f, 1100, Ease.InOutCubic); }
     }
 
     private void Layout2(Graphics g)
@@ -527,6 +545,22 @@ internal sealed class StatusBar : Control
         var g = e.Graphics;
         g.Clear(Ui.Lerp(Theme.Bg, Ui.Alpha(flashColor, 255), flash.Value * 0.18f));
         Layout2(g);
+        if (sweep.Value > 0f && sweep.Value < 1f)
+        {
+            // a band of light that runs along the status bar after a build finishes
+            float band = Math.Max(Ui.D(120), Width * 0.22f);
+            float sx = -band + sweep.Value * (Width + band * 2);
+            var blend = new System.Drawing.Drawing2D.ColorBlend(3)
+            {
+                Colors = new[] { Ui.Alpha(flashColor, 0), Ui.Alpha(flashColor, 85), Ui.Alpha(flashColor, 0) },
+                Positions = new[] { 0f, 0.5f, 1f },
+            };
+            using (var lg = new System.Drawing.Drawing2D.LinearGradientBrush(new RectangleF(sx - band / 2, 0, band, Height), Color.White, Color.White, 0f) { InterpolationColors = blend })
+                g.FillRectangle(lg, sx - band / 2, 0, band, Height);
+            blend.Colors = new[] { Ui.Alpha(flashColor, 0), Ui.Alpha(flashColor, 255), Ui.Alpha(flashColor, 0) };
+            using (var lg = new System.Drawing.Drawing2D.LinearGradientBrush(new RectangleF(sx - band / 2, 0, band, Height), Color.White, Color.White, 0f) { InterpolationColors = blend })
+                g.FillRectangle(lg, sx - band / 2, 0, band, Math.Max(2, Ui.D(2)));
+        }
         int x = Ui.D(12);
         if (busy)
         {
@@ -651,7 +685,8 @@ internal sealed class WelcomePage : Control
     private readonly Random random = new Random(7);
     private readonly List<float[]> sparks = new List<float[]>();
     private readonly Action<double> ticker;
-    private double lastSpark;
+    private double lastSpark, lastFrame;
+    private readonly List<float[]> stars = new List<float[]>();
 
     public WelcomePage()
     {
@@ -666,8 +701,17 @@ internal sealed class WelcomePage : Control
                 sparks.Add(new[] { (float)random.NextDouble(), (float)random.NextDouble(), (float)now, random.Next(3) });
             }
             sparks.RemoveAll(s => now - s[2] > 1800);
-            Invalidate(LogoArea());
+            if (Animator.Reduced) { Invalidate(LogoArea()); return; }
+            // the drifting starfield repaints the whole page, ~30 times a second
+            if (now - lastFrame < 32) return;
+            lastFrame = now;
+            Invalidate();
         };
+        for (int i = 0; i < 54; i++)
+        {
+            float layer = (float)random.NextDouble();
+            stars.Add(new[] { (float)random.NextDouble(), (float)random.NextDouble(), 0.6f + layer * 2.2f, layer < 0.7f ? 1f : 2f, random.Next(4), (float)(random.NextDouble() * Math.PI * 2) });
+        }
     }
 
     public string Version = "";
@@ -776,9 +820,38 @@ internal sealed class WelcomePage : Control
         g.InterpolationMode = InterpolationMode.HighQualityBicubic;
         int top = ContentTop;
         int size = LogoSize;
-        var logoRect = new Rectangle((Width - size) / 2, top, size, size);
-        if (logo != null) g.DrawImage(logo, logoRect);
         double now = Animator.Now;
+        bool rich = !Animator.Reduced;
+        if (rich)
+        {
+            // pixel stars drifting upward at three speeds; slower ones are dimmer, like distant layers
+            foreach (var s in stars)
+            {
+                float yy = (float)((s[1] - now * s[2] / 160000.0) % 1.0);
+                if (yy < 0) yy += 1f;
+                float xx = (float)(s[0] + Math.Sin(now / 4000.0 + s[5]) * 0.004);
+                double tw = 0.55 + 0.45 * Math.Sin(now / 650.0 * (0.6 + s[2] * 0.3) + s[5]);
+                int alpha = (int)((Theme.IsLight ? 70 : 60 + s[2] * 30) * tw);
+                var c = s[4] == 0 ? Theme.Orange : s[4] == 1 ? Theme.Gold : s[4] == 2 ? Theme.Lime : Theme.Muted;
+                int px = Ui.D(s[3] + (s[2] > 2.2f ? 1 : 0));
+                using (var b = new SolidBrush(Ui.Alpha(c, alpha))) g.FillRectangle(b, (int)(xx * Width), (int)(yy * Height), px, px);
+            }
+        }
+        int bob = rich ? (int)Math.Round(Math.Sin(now / 900.0) * Ui.D(3)) : 0;
+        var logoRect = new Rectangle((Width - size) / 2, top + bob, size, size);
+        if (rich)
+        {
+            // warm halo breathing behind the logo
+            float pulse = (float)(0.75 + 0.25 * Math.Sin(now / 1100.0));
+            var halo = RectangleF.Inflate(logoRect, size * 0.55f * pulse, size * 0.45f * pulse);
+            using (var path = new GraphicsPath())
+            {
+                path.AddEllipse(halo);
+                using (var pg = new PathGradientBrush(path) { CenterColor = Ui.Alpha(Theme.Orange, (int)(Theme.IsLight ? 40 : 55 * pulse)), SurroundColors = new[] { Ui.Alpha(Theme.Orange, 0) } })
+                    g.FillPath(pg, path);
+            }
+        }
+        if (logo != null) g.DrawImage(logo, logoRect);
         foreach (var s in sparks)
         {
             float age = (float)((now - s[2]) / 1800.0);

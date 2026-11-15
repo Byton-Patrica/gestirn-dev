@@ -84,7 +84,7 @@ internal sealed class SettingsDialog : DarkDialog
     private readonly List<Action> apply = new List<Action>();
     private readonly AppSettings settings;
 
-    public SettingsDialog(AppSettings settings)
+    public SettingsDialog(AppSettings settings, Func<System.Threading.Tasks.Task<string>> checkNow = null)
     {
         this.settings = settings;
         Text = L.T("Settings", "设置");
@@ -126,6 +126,12 @@ internal sealed class SettingsDialog : DarkDialog
         Toggle(L.T("Terminal in sidebar", "终端放在侧边栏"), L.T("Off: the terminal lives in the bottom panel.", "关闭时终端位于底部面板。"), settings.TerminalInSidebar, v => settings.TerminalInSidebar = v);
         Choice(L.T("Language (restart to apply)", "语言（重启后生效）"), new[] { L.T("Follow Windows", "跟随系统"), "中文", "English" },
             new[] { "auto", "zh", "en" }, settings.Language, v => settings.Language = v);
+
+        Section(L.T("Updates & about", "更新与关于"));
+        UpdateRow(checkNow);
+        Toggle(L.T("Check for updates automatically", "自动检查更新"), L.T("When online, looks for a newer release on GitHub at start. Shows nothing if you are up to date.", "联网时启动后检查 GitHub 是否有新版本；已是最新则不打扰。"), settings.CheckUpdates, v => settings.CheckUpdates = v);
+        LinkRow(L.T("Project on GitHub", "GitHub 项目地址"), Updater.RepoUrl);
+        LinkRow(L.T("All releases", "全部版本下载"), Updater.ReleasesUrl);
         y += Ui.D(10);
         body.Controls.Add(new Panel { Bounds = new Rectangle(0, y, 1, 1), BackColor = Theme.Panel });
 
@@ -182,6 +188,42 @@ internal sealed class SettingsDialog : DarkDialog
         holder.Controls.AddRange(new Control[] { minus, label, plus });
         Row(title, null, holder, holder.Width);
         apply.Add(() => set(current));
+    }
+
+    private void UpdateRow(Func<System.Threading.Tasks.Task<string>> checkNow)
+    {
+        var button = new PixelButton { Glyph = "refresh", Text = L.T("Check now", "立即检查"), Kind = ButtonKind.Secondary, Radius = 8, Height = Ui.D(30) };
+        button.Width = button.PreferredWidth();
+        int top = y;
+        Row(L.T("Version ", "当前版本 ") + MainForm.Version, L.T("Gestirn dev updates come from the GitHub releases page.", "新版本来自 GitHub 发布页。"), button, button.Width);
+        var desc = body.Controls.OfType<Label>().LastOrDefault(l => l.Top == top + Ui.D(30));
+        button.Enabled = checkNow != null;
+        button.Click += async (_, _) =>
+        {
+            if (checkNow == null || button.Busy) return;
+            button.Busy = true;
+            if (desc != null) { desc.Text = L.T("Checking GitHub…", "正在检查 GitHub…"); desc.ForeColor = Theme.Muted; }
+            string result = await checkNow();
+            button.Busy = false;
+            if (desc != null && !desc.IsDisposed) { desc.Text = result; desc.ForeColor = Theme.Lime; }
+        };
+    }
+
+    private void LinkRow(string title, string url)
+    {
+        var link = new LinkLabel
+        {
+            Text = url.Replace("https://", ""), AutoSize = false, Size = new Size(Ui.D(330), Ui.D(24)), TextAlign = ContentAlignment.MiddleRight,
+            LinkColor = Theme.Orange, ActiveLinkColor = Theme.OrangeHot, VisitedLinkColor = Theme.Orange, BackColor = Theme.Panel,
+            Font = Theme.Ui9, LinkBehavior = LinkBehavior.HoverUnderline, Cursor = Cursors.Hand,
+        };
+        link.LinkClicked += (_, _) =>
+        {
+            try { System.Diagnostics.Process.Start(url); }
+            catch (System.ComponentModel.Win32Exception) { Clipboard.SetText(url); }
+        };
+        new ToolTip().SetToolTip(link, url);
+        Row(title, null, link, link.Width);
     }
 
     private void Text2(string title, string value, string placeholder, Action<string> set, bool browse)

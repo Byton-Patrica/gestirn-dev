@@ -11,14 +11,34 @@ Dev-C++ does not need to be installed.
 
 ## Download
 
-**[Gestirn dev 0.51 for Windows (64-bit, includes compiler)](https://github.com/Byton-Patrica/gestirn-dev/releases/download/v0.51/Gestirn-dev-0.51-win64.zip)**
+**[Gestirn dev 0.52 for Windows (64-bit, includes compiler)](https://github.com/Byton-Patrica/gestirn-dev/releases/download/v0.52/Gestirn-dev-0.52-win64.zip)**
 — unzip anywhere and run `Gestirn-dev.exe`. Nothing else to install.
 
-- [Lite package without the compiler](https://github.com/Byton-Patrica/gestirn-dev/releases/download/v0.51/Gestirn-dev-0.51-lite.zip)
+- [Lite package without the compiler](https://github.com/Byton-Patrica/gestirn-dev/releases/download/v0.52/Gestirn-dev-0.52-lite.zip)
   (uses g++ from `PATH`, MSYS2 or an existing Dev-C++).
 - [All releases](https://github.com/Byton-Patrica/gestirn-dev/releases)
 
 The green "Code → Download ZIP" button on GitHub only gives the source code.
+
+## 0.52
+
+- **Performance analysis** (Build → Profile, Ctrl+F11): builds with `-pg`,
+  runs the program, and when it exits shows gprof's results in a Profile
+  panel. Functions are ranked by time spent, with call counts (recursive calls
+  included) and bars that grow in. Double-click a row to jump to the function.
+  Like Dev-C++'s profiler, but with no extra windows.
+- **Update notifications**: when online, Gestirn dev checks this repository's
+  latest GitHub release a few seconds after start. If a newer version exists,
+  a card offers to download it, install it in place and restart, open the
+  release page, or skip that version; if you are up to date, nothing is shown.
+  Settings → Updates & about has the project address, a "Check now" button
+  and a switch for the automatic check (also Help → Check for Updates).
+- **More animation**: a start-up splash where the logo assembles from flying
+  pixels, a drifting starfield and breathing halo on the welcome page, a
+  breathing outline and light sweep on busy buttons, a light that runs along
+  the status bar after builds, rail icons that pop when clicked, and a glowing,
+  breathing line where the debugger is paused. All of it turns off with Rich
+  animations in Settings.
 
 ## 0.51
 
@@ -135,6 +155,7 @@ Source layout:
 
 ## Earlier versions
 
+- **0.51** — standalone with bundled MinGW, ConPTY terminal for AI agents, light/dark themes.
 - **0.5** — new editor, debugger, projects, autosave and sessions.
 - **0.12** — compile and run from the editor, error navigation, tabs.
 - **0.11** — code completion with Ctrl+Space and an embedded terminal.

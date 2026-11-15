@@ -12,7 +12,7 @@ namespace GestirnDev
 {
 internal sealed partial class MainForm : Form
 {
-    public const string Version = "0.51";
+    public const string Version = "0.52";
     public static MainForm Instance;
 
     private readonly AppSettings settings;
@@ -47,6 +47,7 @@ internal sealed partial class MainForm : Form
     private readonly PanelTabs panelTabs = new PanelTabs();
     private readonly OutputView output = new OutputView();
     private readonly ProblemsView problems = new ProblemsView();
+    private readonly ProfileView profileView = new ProfileView();
     private readonly TerminalView terminal = new TerminalView();
     private readonly PixelButton panelClear = new PixelButton { Glyph = "clear", Kind = ButtonKind.Ghost, Radius = 7 };
     private readonly PixelButton panelClose = new PixelButton { Glyph = "close", Kind = ButtonKind.Ghost, Radius = 7 };
@@ -146,6 +147,7 @@ internal sealed partial class MainForm : Form
         fade.Finished += () => Opacity = 1.0;
         if (active != null) active.Editor.Focus();
         CheckCompiler();
+        ScheduleUpdateCheck();
     }
 
     // ------------------------------------------------------------------ chrome
@@ -238,14 +240,16 @@ internal sealed partial class MainForm : Form
         panelTabs.Add("problems", L.T("PROBLEMS", "问题"));
         panelTabs.Add("output", L.T("OUTPUT", "输出"));
         panelTabs.Add("terminal", L.T("TERMINAL", "终端"));
+        panelTabs.Add("profile", L.T("PROFILE", "性能分析"));
         panelTabs.TabClicked += id => ShowPanel(id);
         tips.SetToolTip(panelClear, L.T("Clear", "清空"));
         tips.SetToolTip(panelClose, L.T("Hide panel (Ctrl+J)", "隐藏面板 (Ctrl+J)"));
-        panelClear.Click += (_, _) => { if (panelTabs.Active == "terminal") terminal.Clear(); else output.Clear(); };
+        panelClear.Click += (_, _) => { if (panelTabs.Active == "terminal") terminal.Clear(); else if (panelTabs.Active == "profile") profileView.Clear(); else output.Clear(); };
         panelClose.Click += (_, _) => TogglePanel(false);
-        foreach (Control c in new Control[] { panelTabs, output, problems, terminal, panelClear, panelClose }) bottom.Controls.Add(c);
+        foreach (Control c in new Control[] { panelTabs, output, problems, profileView, terminal, panelClear, panelClose }) bottom.Controls.Add(c);
         bottom.Resize += (_, _) => LayoutBottom();
         problems.Activated += GoToDiagnostic;
+        profileView.FunctionActivated += e => GoToDefinition(e.ShortName);
         output.LineDoubleClicked += line =>
         {
             var d = Toolchain.ParseDiagnostics(line, project != null ? project.Directory : active != null && active.Path != null ? Path.GetDirectoryName(active.Path) : workspace ?? "").FirstOrDefault();
@@ -386,7 +390,7 @@ internal sealed partial class MainForm : Form
         panelClose.SetBounds(w - Ui.D(36), Ui.D(8), Ui.D(26), Ui.D(26));
         panelClear.SetBounds(w - Ui.D(64), Ui.D(8), Ui.D(26), Ui.D(26));
         var area = new Rectangle(Ui.D(4), Ui.D(40), Math.Max(10, w - Ui.D(8)), Math.Max(10, h - Ui.D(44)));
-        output.Bounds = problems.Bounds = area;
+        output.Bounds = problems.Bounds = profileView.Bounds = area;
         if (terminal.Parent == bottom) terminal.Bounds = area;
         panelTabs.Select(panelTabs.Active, false);
     }
@@ -443,10 +447,11 @@ internal sealed partial class MainForm : Form
         panelTabs.Select(id, true);
         output.Visible = id == "output";
         problems.Visible = id == "problems";
+        profileView.Visible = id == "profile";
         if (terminal.Parent == bottom) terminal.Visible = id == "terminal";
         panelClear.Visible = id != "problems";
         LayoutBottom();
-        foreach (Control c in new Control[] { output, problems, terminal }) if (c.Visible) { c.PerformLayout(); c.Invalidate(true); }
+        foreach (Control c in new Control[] { output, problems, profileView, terminal }) if (c.Visible) { c.PerformLayout(); c.Invalidate(true); }
         if (reveal && !settings.PanelVisible) TogglePanel(true);
         if (id == "terminal" && reveal) terminal.FocusInput();
     }

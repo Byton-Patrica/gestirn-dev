@@ -156,8 +156,11 @@ internal sealed partial class MainForm
 
         var shortcuts = C("help.shortcuts", "Keyboard Shortcuts", "键盘快捷键", Keys.None, () => palette.Open(">", L.T("All commands and their shortcuts", "全部命令及其快捷键")), "palette");
         var about = C("help.about", "About Gestirn dev", "关于 Gestirn dev", Keys.None, ShowAbout, "info");
-        var repo = C("help.repo", "Project on GitHub", "GitHub 项目主页", Keys.None, () => Process.Start("https://github.com/Byton-Patrica/gestirn-dev"), "info");
+        var checkUpdates = C("help.update", "Check for Updates...", "检查更新...", Keys.None, () => CheckForUpdates(true), "update");
+        var repo = C("help.repo", "Project on GitHub", "GitHub 项目主页", Keys.None, () => Process.Start(Updater.RepoUrl), "info");
 
+        var profileCmd = C("build.profile", "Profile (Performance Analysis)", "性能分析", Keys.Control | Keys.F11, () => Compile(true, false, false, true), "profile");
+        var viewProfile = C("view.profile", "Profile Results", "性能分析结果", Keys.None, () => ShowPanel("profile"), "profile");
         var syntax = C("build.syntax", "Syntax Check", "语法检查", Keys.Control | Keys.F9, SyntaxCheck, "check");
         var progArgs = C("build.args", "Program Arguments...", "程序运行参数...", Keys.None, SetProgramArguments, "term");
         var projNew = C("project.newFile", "New File in Project...", "在项目中新建文件...", Keys.None, NewFileInProject, "new");
@@ -200,13 +203,13 @@ internal sealed partial class MainForm
         menu.Items.Add(MenuOf("File", "文件", newFile, newProject, null, openFile, openFolder, openProject, recent, null, save, saveAs, saveAll, encoding, null, print, exportHtml, null, close, reopen, closeFolder, null, exit));
         menu.Items.Add(MenuOf("Edit", "编辑", undo, redo, null, cut, copy, paste, selectAll, null, find, replace, findNext, findPrev, findFiles, null, gotoLine, gotoSymbol, gotoDef, bookmark, nextBookmark, null, comment, duplicate, moveUp, moveDown, deleteLine, format, suggest));
         menu.Items.Add(MenuOf("Insert", "插入", insDate, insHeader, insGuard, null, insMain, insClass));
-        menu.Items.Add(MenuOf("View", "视图", commandPalette, quickOpen, null, viewExplorer, viewSearch, viewOutline, viewDebug, null, toggleSide, togglePanel, viewProblems, viewOutput, viewTerminal, null, themeCmd, animCmd, null, zoomIn, zoomOut, zoomReset));
+        menu.Items.Add(MenuOf("View", "视图", commandPalette, quickOpen, null, viewExplorer, viewSearch, viewOutline, viewDebug, null, toggleSide, togglePanel, viewProblems, viewOutput, viewTerminal, viewProfile, null, themeCmd, animCmd, null, zoomIn, zoomOut, zoomReset));
         menu.Items.Add(MenuOf("Project", "项目", newProject, openProject, null, projNew, projAdd, projRemove, null, projOptions, closeFolder));
-        menu.Items.Add(MenuOf("Build", "编译", compile, run, compileRun, rebuild, syntax, stop, null, progArgs, buildSettings));
+        menu.Items.Add(MenuOf("Build", "编译", compile, run, compileRun, rebuild, syntax, stop, null, profileCmd, viewProfile, null, progArgs, buildSettings));
         menu.Items.Add(MenuOf("Debug", "调试", debugStart, stepOver, stepInto, stepOut, debugStop, null, toggleBp, addWatch, clearBps));
         menu.Items.Add(MenuOf("Terminal", "终端", newTerm, viewTerminal, null, termSide, termPanel));
         menu.Items.Add(MenuOf("Tools", "工具", openSettings, format, openTerminal, null, openScratch, openData));
-        menu.Items.Add(MenuOf("Help", "帮助", commandPalette, shortcuts, null, repo, about));
+        menu.Items.Add(MenuOf("Help", "帮助", commandPalette, shortcuts, null, checkUpdates, repo, about));
 
         foreach (var c in new[] { cut, copy, paste, null, comment, format, gotoLine, null, toggleBp, addWatch })
         {
@@ -430,7 +433,7 @@ internal sealed partial class MainForm
 
     // ------------------------------------------------------------------ build & run
 
-    private BuildOptions Options(string compiler, bool debug)
+    private BuildOptions Options(string compiler, bool debug, bool profile = false)
     {
         return new BuildOptions
         {
@@ -439,6 +442,7 @@ internal sealed partial class MainForm
             ExtraFlags = settings.ExtraFlags,
             Optimization = settings.Optimization,
             Debug = debug,
+            Profile = profile && !debug,
             StaticLink = settings.StaticLink,
             ExecCharset = settings.ExecCharset,
         };
@@ -477,7 +481,7 @@ internal sealed partial class MainForm
         return true;
     }
 
-    private async void Compile(bool run, bool rebuild, bool debug)
+    private async void Compile(bool run, bool rebuild, bool debug, bool profile = false)
     {
         if (building) { status.Message = L.T("A build is already running", "正在编译中"); status.Invalidate(); return; }
         DevProject target;
@@ -503,13 +507,13 @@ internal sealed partial class MainForm
         status.Message = (debug ? L.T("Building for debugging: ", "正在为调试编译：") : L.T("Compiling ", "正在编译 ")) + name + "…";
         status.Invalidate();
         output.Clear();
-        output.Append("▸ " + (debug ? L.T("Debug build of ", "调试构建 ") : L.T("Building ", "开始编译 ")) + name + "   [" + Options(compiler, debug).Standard + ", GCC " + Toolchain.Version(compiler) + "]", Theme.Orange);
+        output.Append("▸ " + (profile ? L.T("Profiling build of ", "性能分析构建 ") : debug ? L.T("Debug build of ", "调试构建 ") : L.T("Building ", "开始编译 ")) + name + "   [" + Options(compiler, debug).Standard + ", GCC " + Toolchain.Version(compiler) + "]", Theme.Orange);
         try
         {
-            var opts = Options(compiler, debug);
+            var opts = Options(compiler, debug, profile);
             BuildOutcome result;
             if (target != null)
-                result = await Toolchain.BuildProject(target, opts, rebuild || debug, line => output.AppendLog(line), p => { lock (buildProcs) buildProcs.Add(p); });
+                result = await Toolchain.BuildProject(target, opts, rebuild || debug || profile, line => output.AppendLog(line), p => { lock (buildProcs) buildProcs.Add(p); });
             else
             {
                 result = await Toolchain.BuildSingle(source, opts, p => { lock (buildProcs) buildProcs.Add(p); });
@@ -532,11 +536,12 @@ internal sealed partial class MainForm
                 status.Flash(Theme.Lime);
                 var burstFrom = button.Visible ? button : runBtn;
                 topBar.Burst(new Point(burstFrom.Left + burstFrom.Width / 2, burstFrom.Top + burstFrom.Height / 2));
-                if (warnings > 0 && !run && !debug)
+                if (warnings > 0 && !run && !debug && !profile)
                     toasts.Show(L.T("Built with warnings", "编译成功，但有警告"), string.Format(L.T("{0} warnings — see Problems.", "{0} 个警告，详见“问题”面板。"), warnings), ToastKind.Warning);
-                else if (!run && !debug)
+                else if (!run && !debug && !profile)
                     toasts.Show(L.T("Build succeeded", "编译成功"), Path.GetFileName(result.ExePath) + "  ·  " + secs + "s", ToastKind.Success, 2200);
-                if (debug) StartDebugging(result.ExePath, target != null ? target.Directory : Path.GetDirectoryName(source));
+                if (profile) StartProfiling(result.ExePath, compiler);
+                else if (debug) StartDebugging(result.ExePath, target != null ? target.Directory : Path.GetDirectoryName(source));
                 else if (run) Launch(result.ExePath);
             }
             else
@@ -849,7 +854,7 @@ internal sealed partial class MainForm
     {
         string oldLanguage = settings.Language;
         bool oldSidebarTerminal = settings.TerminalInSidebar;
-        using (var dialog = new SettingsDialog(settings))
+        using (var dialog = new SettingsDialog(settings, CheckForUpdatesFromSettings))
         {
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
         }
@@ -884,6 +889,7 @@ internal sealed partial class MainForm
             case "indent": OpenSettings(); break;
             case "project": ShowView("explorer"); ToggleSidebar(true); break;
             case "enc": ChooseEncoding(); break;
+            case "update": if (availableRelease != null) ShowUpdateCard(availableRelease); break;
             case "eol":
                 if (active == null) break;
                 active.CrLf = !active.CrLf;
