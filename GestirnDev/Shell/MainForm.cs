@@ -1083,7 +1083,7 @@ internal sealed partial class MainForm : Form
             g.Clear(Theme.Bg);
             int size = Ui.D(26);
             var r = new Rectangle(Ui.D(14), (Height - size) / 2, size, size);
-            if (Logo != null) Shapes.DrawRounded(g, Logo, r, Ui.D(6));
+            if (Logo != null) Shapes.DrawRounded(g, Logo, r, r.Width * 0.224f);
             if (busy)
             {
                 // Logo pixels "compile": a few lime and orange pixels blink around the mark.

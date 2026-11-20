@@ -868,11 +868,11 @@ internal sealed class WelcomePage : Control
             if (Theme.IsLight)
             {
                 // flat offset shadow, then the icon tile with a dark brown outline
-                Shapes.FillRound(g, Theme.Outline, new RectangleF(logoRect.X + Ui.D(4), logoRect.Y + Ui.D(4), logoRect.Width, logoRect.Height), Ui.D(18));
-                Shapes.DrawRounded(g, logo, logoRect, Ui.D(18));
-                Shapes.StrokeRound(g, Theme.Outline, logoRect, Ui.D(18), Math.Max(2f, Ui.Scale * 1.5f));
+                Shapes.FillRound(g, Theme.Outline, new RectangleF(logoRect.X + Ui.D(4), logoRect.Y + Ui.D(4), logoRect.Width, logoRect.Height), logoRect.Width * 0.224f);
+                Shapes.DrawRounded(g, logo, logoRect, logoRect.Width * 0.224f);
+                Shapes.StrokeRound(g, Theme.Outline, logoRect, logoRect.Width * 0.224f, Math.Max(2f, Ui.Scale * 1.5f));
             }
-            else Shapes.DrawRounded(g, logo, logoRect, Ui.D(18));
+            else Shapes.DrawRounded(g, logo, logoRect, logoRect.Width * 0.224f);
         }
         foreach (var s in sparks)
         {

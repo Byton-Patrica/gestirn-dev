@@ -71,7 +71,26 @@ internal sealed class SplashForm : Form
         try
         {
             sample = logo != null ? new Bitmap(logo, grid, grid) : null;
-            Color paper = sample != null ? sample.GetPixel(0, 0) : Color.Empty;
+            // the tile's paper colour is simply its most common opaque colour (the corners are transparent now)
+            Color paper = Color.Empty;
+            if (sample != null)
+            {
+                var counts = new Dictionary<int, int>();
+                var sampleColor = new Dictionary<int, Color>();
+                for (int yy = 0; yy < grid; yy++)
+                    for (int xx = 0; xx < grid; xx++)
+                    {
+                        Color pc = sample.GetPixel(xx, yy);
+                        if (pc.A < 200) continue;
+                        int key = ((pc.R >> 4) << 8) | ((pc.G >> 4) << 4) | (pc.B >> 4);
+                        int n;
+                        counts.TryGetValue(key, out n);
+                        counts[key] = n + 1;
+                        sampleColor[key] = pc;
+                    }
+                int best = 0;
+                foreach (var kv in counts) if (kv.Value > best) { best = kv.Value; paper = sampleColor[kv.Key]; }
+            }
             for (int y = 0; y < grid; y++)
                 for (int x = 0; x < grid; x++)
                 {
@@ -177,12 +196,12 @@ internal sealed class SplashForm : Form
             attrs.SetColorMatrix(cm);
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
             var state = g.Save();
-            using (var clip = Shapes.Round(logoRect, Ui.D(18))) g.SetClip(clip, CombineMode.Intersect);
+            using (var clip = Shapes.Round(logoRect, logoRect.Width * 0.224f)) g.SetClip(clip, CombineMode.Intersect);
             g.DrawImage(logo, logoRect, 0, 0, logo.Width, logo.Height, GraphicsUnit.Pixel, attrs);
             g.Restore(state);
             attrs.Dispose();
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            Shapes.StrokeRound(g, Ui.Alpha(Theme.Outline, (int)(255 * settle)), logoRect, Ui.D(18), Math.Max(2f, Ui.Scale * 1.5f));
+            Shapes.StrokeRound(g, Ui.Alpha(Theme.Outline, (int)(255 * settle)), logoRect, logoRect.Width * 0.224f, Math.Max(2f, Ui.Scale * 1.5f));
         }
 
         // title letters rise in one by one
