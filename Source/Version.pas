@@ -32,7 +32,7 @@ const
 
   // exe properties
   DEVCPP = 'Gestirn dev';
-  DEVCPP_VERSION = '0.52';
+  DEVCPP_VERSION = '0.6';
 
   // delimiters
   DEV_INTERNAL_OPEN = '$__DEV_INTERNAL_OPEN';

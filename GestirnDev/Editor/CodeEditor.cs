@@ -36,6 +36,10 @@ internal sealed class Diagnostic
     public int Col;       // 1-based column from the compiler, 0 when unknown
     public Severity Severity;
     public string Message, Hint;
+    public string Plain;   // the message in plain language (null when there is no translation)
+
+    // What to show as the headline: the plain wording when simple translation is on.
+    public string Headline { get { return Hints.SimpleMode && !string.IsNullOrEmpty(Plain) ? Plain : Message; } }
 }
 
 // A self-drawn code editor: text model, undo, syntax colouring, IME, completion and markers.
@@ -2165,7 +2169,7 @@ internal sealed class CodeEditor : Control
     {
         var d = hoverDiag;
         string title = d.Severity == Severity.Error ? L.T("Error", "错误") : d.Severity == Severity.Warning ? L.T("Warning", "警告") : L.T("Note", "提示");
-        string body = d.Message + (string.IsNullOrEmpty(d.Hint) ? "" : "\n\n" + d.Hint);
+        string body = d.Headline + (Hints.SimpleMode && !string.IsNullOrEmpty(d.Plain) ? "\n(" + d.Message + ")" : "") + (string.IsNullOrEmpty(d.Hint) ? "" : "\n\n" + d.Hint);
         int maxW = Ui.D(460);
         var size = TextRenderer.MeasureText(g, body, Theme.Ui9, new Size(maxW - Ui.D(24), 2000), TextFormatFlags.WordBreak);
         int w = Math.Min(maxW, size.Width + Ui.D(24));

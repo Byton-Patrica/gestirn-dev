@@ -8,9 +8,9 @@ using System.Windows.Forms;
 [assembly: AssemblyProduct("Gestirn dev")]
 [assembly: AssemblyDescription("A modern, lightweight C/C++ IDE built from the Dev-C++ source line")]
 [assembly: AssemblyCopyright("GPL-2.0; based on Bloodshed/Orwell Dev-C++")]
-[assembly: AssemblyVersion("0.52.0.0")]
-[assembly: AssemblyFileVersion("0.52.0.0")]
-[assembly: AssemblyInformationalVersion("0.52")]
+[assembly: AssemblyVersion("0.6.0.0")]
+[assembly: AssemblyFileVersion("0.6.0.0")]
+[assembly: AssemblyInformationalVersion("0.6")]
 
 namespace GestirnDev
 {
@@ -28,6 +28,7 @@ internal static class Program
         L.Zh = settings.UseChinese;
         Theme.Apply(MainForm.ResolveLight(settings.Theme));
         Animator.Reduced = !settings.Animations;
+        Hints.SimpleMode = settings.SimpleErrors;
         Theme.InitFonts(settings.FontName, settings.FontSize);
 
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);

@@ -34,14 +34,21 @@ internal static class Ui
     public static Color Alpha(Color c, int alpha) { return Color.FromArgb(Math.Max(0, Math.Min(255, alpha)), c.R, c.G, c.B); }
 }
 
-// Palette sampled from the GestirnEra DataRot logo: ink black, ivory, orange, gold and lime pixels.
-// Two variants: dark (default) and light. Apply() swaps them at runtime.
+// Two variants. Dark is the original ink-black and orange palette. Light is the 70s look taken from the
+// GestirnEra 70s icon: warm cream paper, dark brown ink, red-orange accents and a six-colour rainbow stripe.
+// Apply() swaps them at runtime.
 internal static class Theme
 {
     public static bool IsLight;
     public static Color Bg, Panel, PanelHi, Raised, Hover, Edge, EdgeSoft;
     public static Color Text, TextDim, Muted, Faint;
-    public static Color Orange, OrangeHot, OrangeDeep, Gold, Lime, Red, Blue, Violet, Ink;
+    public static Color Orange, OrangeHot, OrangeDeep, Gold, Lime, Red, Blue, Violet, Ink, Outline, Frame;
+    // The icon's rainbow, top to bottom: red, orange, yellow, green, blue, purple.
+    public static readonly Color[] Rainbow =
+    {
+        Color.FromArgb(224, 56, 40), Color.FromArgb(232, 112, 32), Color.FromArgb(242, 188, 48),
+        Color.FromArgb(108, 160, 64), Color.FromArgb(70, 112, 184), Color.FromArgb(126, 84, 150),
+    };
     public static Color EditorBg, CurrentLine, Selection, SelectionInactive, GutterText, FindMatch, BracketMatch, TerminalBg;
     public static Color SynPlain, SynKeyword, SynType, SynString, SynNumber, SynComment, SynPreproc, SynFunction, SynOperator;
 
@@ -63,21 +70,24 @@ internal static class Theme
             SynPlain = C(222, 218, 208); SynKeyword = C(255, 124, 48); SynType = C(255, 184, 108); SynString = C(196, 242, 58);
             SynNumber = C(245, 179, 53); SynComment = C(108, 105, 98); SynPreproc = C(201, 160, 255); SynFunction = C(132, 196, 255);
             SynOperator = C(170, 166, 156);
+            Outline = C(52, 52, 60); Frame = C(31, 31, 37);
         }
         else
         {
-            Bg = C(238, 235, 228); Panel = C(247, 245, 240); PanelHi = C(255, 255, 255); Raised = C(232, 228, 220); Hover = C(222, 217, 207);
-            Edge = C(214, 209, 199); EdgeSoft = C(226, 222, 213);
-            Text = C(30, 28, 25); TextDim = C(78, 74, 68); Muted = C(128, 123, 115); Faint = C(170, 165, 156);
-            Orange = C(222, 84, 14); OrangeHot = C(240, 102, 30); OrangeDeep = C(180, 64, 8); Gold = C(176, 120, 0);
-            Lime = C(86, 138, 0); Red = C(214, 52, 52); Blue = C(40, 104, 210); Violet = C(124, 78, 200); Ink = C(255, 252, 246);
-            EditorBg = C(255, 255, 255); CurrentLine = C(248, 245, 238); Selection = Color.FromArgb(70, 240, 96, 24);
-            SelectionInactive = Color.FromArgb(60, 120, 116, 108); GutterText = C(176, 171, 162); FindMatch = Color.FromArgb(90, 245, 179, 53);
-            BracketMatch = Color.FromArgb(150, 86, 138, 0); TerminalBg = C(252, 251, 248);
-            SynPlain = C(36, 34, 30); SynKeyword = C(206, 70, 6); SynType = C(166, 90, 10); SynString = C(72, 126, 0);
-            SynNumber = C(150, 100, 0); SynComment = C(140, 136, 128); SynPreproc = C(124, 70, 196); SynFunction = C(30, 98, 190);
-            SynOperator = C(96, 92, 84);
+            Bg = C(226, 214, 184); Panel = C(244, 236, 214); PanelHi = C(251, 247, 233); Raised = C(236, 226, 200); Hover = C(224, 211, 178);
+            Edge = C(160, 134, 100); EdgeSoft = C(207, 192, 160);
+            Text = C(44, 28, 18); TextDim = C(96, 74, 58); Muted = C(140, 118, 96); Faint = C(184, 164, 136);
+            Orange = C(226, 70, 34); OrangeHot = C(240, 96, 40); OrangeDeep = C(176, 48, 20); Gold = C(198, 134, 10);
+            Lime = C(88, 134, 40); Red = C(208, 46, 38); Blue = C(54, 98, 168); Violet = C(120, 76, 140); Ink = C(252, 246, 230);
+            Outline = C(70, 48, 32); Frame = C(172, 146, 112);
+            EditorBg = C(251, 246, 232); CurrentLine = C(243, 233, 205); Selection = Color.FromArgb(70, 232, 88, 32);
+            SelectionInactive = Color.FromArgb(60, 140, 118, 96); GutterText = C(176, 156, 128); FindMatch = Color.FromArgb(110, 242, 190, 40);
+            BracketMatch = Color.FromArgb(150, 110, 160, 60); TerminalBg = C(250, 244, 228);
+            SynPlain = C(48, 32, 22); SynKeyword = C(208, 56, 28); SynType = C(178, 92, 12); SynString = C(84, 128, 38);
+            SynNumber = C(190, 120, 0); SynComment = C(150, 132, 108); SynPreproc = C(124, 72, 140); SynFunction = C(48, 92, 160);
+            SynOperator = C(110, 88, 70);
         }
+        if (Ui9 != null) ApplyFonts();
     }
 
     private static Color C(int r, int g, int b) { return Color.FromArgb(r, g, b); }
@@ -156,11 +166,26 @@ internal static class Theme
         Ui10 = new Font(ui, 10f);
         UiSemi = new Font(FontExists("Segoe UI Semibold") ? "Segoe UI Semibold" : ui, 9.5f);
         UiSmall = new Font(ui, 8.5f);
-        UiTitle = new Font(FontExists("Segoe UI Semibold") ? "Segoe UI Semibold" : ui, 12f);
-        UiHero = new Font(FontExists("Segoe UI Semibold") ? "Segoe UI Semibold" : ui, 22f);
         CodeFamily = PickCodeFont(preferredCode);
         Code = new Font(CodeFamily, codeSize);
         CodeSmall = new Font(CodeFamily, 9f);
+        ApplyFonts();
+    }
+
+    // Titles are set in a bold serif in the 70s theme (like the icon's G) and in the UI face in the dark one.
+    private static void ApplyFonts()
+    {
+        string ui = FontExists("Segoe UI Semibold") ? "Segoe UI Semibold" : "Segoe UI";
+        if (IsLight && FontExists("Georgia"))
+        {
+            UiTitle = new Font("Georgia", 12f, FontStyle.Bold);
+            UiHero = new Font("Georgia", 22f, FontStyle.Bold);
+        }
+        else
+        {
+            UiTitle = new Font(ui, 12f);
+            UiHero = new Font(ui, 22f);
+        }
     }
 
     public static string PickCodeFont(string preferred)
@@ -217,6 +242,42 @@ internal static class Shapes
         var rr = new RectangleF(r.X + inset, r.Y + inset, r.Width - width, r.Height - width);
         using (var path = Round(rr, radius))
         using (var pen = new Pen(color, width)) g.DrawPath(pen, path);
+        g.SmoothingMode = mode;
+    }
+
+    // Draws an image clipped to a rounded rectangle (the 70s icon is a plain square).
+    public static void DrawRounded(Graphics g, Image image, Rectangle r, float radius)
+    {
+        var state = g.Save();
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        using (var path = Round(r, radius)) g.SetClip(path, CombineMode.Intersect);
+        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        g.DrawImage(image, r);
+        g.Restore(state);
+    }
+
+    // The icon's six rainbow bands filling r. A shimmer (0..1) slides a pale highlight across them.
+    public static void Stripes(Graphics g, Rectangle r, double shimmer = -1)
+    {
+        var mode = g.SmoothingMode;
+        g.SmoothingMode = SmoothingMode.None;
+        int n = Theme.Rainbow.Length;
+        for (int i = 0; i < n; i++)
+        {
+            int y0 = r.Y + i * r.Height / n, y1 = r.Y + (i + 1) * r.Height / n;
+            using (var b = new SolidBrush(Theme.Rainbow[i])) g.FillRectangle(b, r.X, y0, r.Width, Math.Max(1, y1 - y0));
+        }
+        if (shimmer >= 0 && shimmer <= 1 && !Animator.Reduced)
+        {
+            int w = Math.Max(Ui.D(40), r.Width / 8);
+            int x = r.X - w + (int)((r.Width + w * 2) * shimmer);
+            var clip = g.Clip;
+            g.SetClip(r);
+            using (var b = new SolidBrush(Color.FromArgb(90, 255, 255, 255)))
+                g.FillPolygon(b, new[] { new Point(x, r.Bottom), new Point(x + w / 2, r.Bottom), new Point(x + w, r.Y), new Point(x + w / 2, r.Y) });
+            g.Clip = clip;
+        }
         g.SmoothingMode = mode;
     }
 

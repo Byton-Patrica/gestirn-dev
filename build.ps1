@@ -25,15 +25,15 @@ if (-not $csc) {
 if (-not $csc) { throw 'Roslyn csc.exe not found. Install Visual Studio Build Tools (C# compiler).' }
 
 New-Item -ItemType Directory -Force $out | Out-Null
-$refs = 'System.dll', 'System.Core.dll', 'System.Drawing.dll', 'System.Windows.Forms.dll', 'Microsoft.VisualBasic.dll' |
+$refs = 'System.dll', 'System.Core.dll', 'System.Drawing.dll', 'System.Windows.Forms.dll', 'Microsoft.VisualBasic.dll', 'System.Security.dll' |
     ForEach-Object { "-r:" + (Join-Path $fw $_) }
 
-& $csc -nologo -target:winexe -optimize+ "-win32icon:$root\GestirnDev\GestirnEra-datarot.ico" "-out:$out\Gestirn-dev.exe" $refs "-recurse:$root\GestirnDev\*.cs"
+& $csc -nologo -target:winexe -optimize+ "-win32icon:$root\GestirnDev\GestirnEra-70s.ico" "-out:$out\Gestirn-dev.exe" $refs "-recurse:$root\GestirnDev\*.cs"
 if ($LASTEXITCODE) { throw 'Gestirn-dev.exe build failed' }
 & $csc -nologo -target:exe -optimize+ "-out:$out\GestirnRun.exe" "-r:$fw\System.dll" "-r:$fw\System.Core.dll" "$root\GestirnRun\Program.cs"
 if ($LASTEXITCODE) { throw 'GestirnRun.exe build failed' }
 
-Copy-Item "$root\GestirnDev\GestirnEra-datarot.ico", "$root\Assets\Branding\GestirnEra-datarot-256.png", "$root\COPYING.txt" $out -Force
+Copy-Item "$root\GestirnDev\GestirnEra-70s.ico", "$root\Assets\Branding\GestirnEra-70s-256.png", "$root\COPYING.txt" $out -Force
 New-Item -ItemType Directory -Force "$out\AStyle", "$out\Templates" | Out-Null
 Copy-Item "$root\AStyle\AStyle.exe" "$out\AStyle\" -Force
 Copy-Item "$root\Templates\*" "$out\Templates\" -Recurse -Force

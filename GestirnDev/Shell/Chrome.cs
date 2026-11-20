@@ -569,8 +569,10 @@ internal sealed class StatusBar : Control
             int cell = Math.Max(2, Ui.D(3));
             int stride = cell * 3;
             int shift = (int)(phase / 40) % stride;
-            using (var b = new SolidBrush(Ui.Alpha(Theme.Orange, 200)))
-                for (int px = -stride + shift; px < Width; px += stride) g.FillRectangle(b, px, 0, cell, Math.Max(1, Ui.D(2)));
+            int ci = 0;
+            for (int px = -stride + shift; px < Width; px += stride, ci++)
+                using (var b = new SolidBrush(Theme.IsLight ? Theme.Rainbow[(ci + (int)(phase / 90)) % Theme.Rainbow.Length] : Ui.Alpha(Theme.Orange, 200)))
+                    g.FillRectangle(b, px, 0, cell, Math.Max(1, Ui.D(Theme.IsLight ? 3 : 2)));
         }
         x += (int)(Math.Sin(shake.Value * 26) * shake.Value * Ui.D(6));
         Shapes.Text(g, Message ?? "", Theme.UiSmall, new Rectangle(x, 0, Width / 2, Height), flash.Value > 0.05f ? Ui.Lerp(Theme.TextDim, flashColor, flash.Value) : Theme.TextDim, Shapes.Left);
@@ -685,7 +687,7 @@ internal sealed class WelcomePage : Control
     private readonly Random random = new Random(7);
     private readonly List<float[]> sparks = new List<float[]>();
     private readonly Action<double> ticker;
-    private double lastSpark, lastFrame;
+    private double lastSpark, lastFrame, shownAt;
     private readonly List<float[]> stars = new List<float[]>();
 
     public WelcomePage()
@@ -730,7 +732,7 @@ internal sealed class WelcomePage : Control
     protected override void OnVisibleChanged(EventArgs e)
     {
         base.OnVisibleChanged(e);
-        if (Visible) Animator.AddTicker(ticker); else Animator.RemoveTicker(ticker);
+        if (Visible) { Animator.AddTicker(ticker); shownAt = Animator.Now; } else Animator.RemoveTicker(ticker);
         if (Visible)
             for (int i = 0; i < Actions.Count; i++) { Actions[i].Appear.Snap(0f); Actions[i].Appear.To(1f, 420, Ease.OutBack, 80 + i * 70); }
     }
@@ -839,7 +841,17 @@ internal sealed class WelcomePage : Control
         }
         int bob = rich ? (int)Math.Round(Math.Sin(now / 900.0) * Ui.D(3)) : 0;
         var logoRect = new Rectangle((Width - size) / 2, top + bob, size, size);
-        if (rich)
+        if (Theme.IsLight)
+        {
+            // like the icon: rainbow stripes run out sideways from behind the logo, growing in on entry
+            double since = rich ? (Animator.Now - shownAt) : 99999;
+            float grow = Ease.OutCubic((float)Math.Min(1.0, since / 900.0));
+            int half = (int)((Width / 2) * grow);
+            int bandH = Ui.D(30);
+            var band = new Rectangle(Width / 2 - half, logoRect.Y + size / 2 - bandH / 2 + Ui.D(6), half * 2, bandH);
+            Shapes.Stripes(g, band, rich ? (since / 2600.0) % 3.0 / 3.0 : -1);
+        }
+        if (rich && !Theme.IsLight)
         {
             // warm halo breathing behind the logo
             float pulse = (float)(0.75 + 0.25 * Math.Sin(now / 1100.0));
@@ -851,7 +863,17 @@ internal sealed class WelcomePage : Control
                     g.FillPath(pg, path);
             }
         }
-        if (logo != null) g.DrawImage(logo, logoRect);
+        if (logo != null)
+        {
+            if (Theme.IsLight)
+            {
+                // flat offset shadow, then the icon tile with a dark brown outline
+                Shapes.FillRound(g, Theme.Outline, new RectangleF(logoRect.X + Ui.D(4), logoRect.Y + Ui.D(4), logoRect.Width, logoRect.Height), Ui.D(18));
+                Shapes.DrawRounded(g, logo, logoRect, Ui.D(18));
+                Shapes.StrokeRound(g, Theme.Outline, logoRect, Ui.D(18), Math.Max(2f, Ui.Scale * 1.5f));
+            }
+            else Shapes.DrawRounded(g, logo, logoRect, Ui.D(18));
+        }
         foreach (var s in sparks)
         {
             float age = (float)((now - s[2]) / 1800.0);
@@ -884,8 +906,19 @@ internal sealed class WelcomePage : Control
             int lift = (int)(h * Ui.D(3)) - (int)((1f - Math.Min(1f, a.Appear.Value)) * Ui.D(26));
             a.Bounds = new Rectangle(x, y + row * (cardH + gap), cardW, cardH);
             var r = new RectangleF(x, a.Bounds.Y - lift, cardW, cardH);
-            Shapes.FillRound(g, Ui.Lerp(Theme.Panel, Theme.Raised, h), r, Ui.D(12));
-            Shapes.StrokeRound(g, Ui.Lerp(Theme.Edge, Ui.Alpha(Theme.Orange, 200), h), r, Ui.D(12), Math.Max(1f, Ui.Scale * 0.75f));
+            if (Theme.IsLight)
+            {
+                // printed-card look: flat offset shadow in the stripe colour of this card, dark outline
+                var sh = Theme.Rainbow[(i * 2) % Theme.Rainbow.Length];
+                Shapes.FillRound(g, sh, new RectangleF(r.X + Ui.D(4 - h * 2), r.Y + Ui.D(4 - h * 2), r.Width, r.Height), Ui.D(12));
+                Shapes.FillRound(g, Theme.PanelHi, r, Ui.D(12));
+                Shapes.StrokeRound(g, Theme.Outline, r, Ui.D(12), Math.Max(2f, Ui.Scale * 1.25f));
+            }
+            else
+            {
+                Shapes.FillRound(g, Ui.Lerp(Theme.Panel, Theme.Raised, h), r, Ui.D(12));
+                Shapes.StrokeRound(g, Ui.Lerp(Theme.Edge, Ui.Alpha(Theme.Orange, 200), h), r, Ui.D(12), Math.Max(1f, Ui.Scale * 0.75f));
+            }
             Glyphs.Draw(g, a.Glyph, new Rectangle(x + Ui.D(16), (int)r.Y + Ui.D(16), Ui.D(18), Ui.D(18)), Ui.Lerp(Theme.Orange, Theme.OrangeHot, h));
             Shapes.Text(g, a.Title, Theme.UiSemi, new Rectangle(x + Ui.D(16), (int)r.Y + Ui.D(42), cardW - Ui.D(24), Ui.D(20)), Theme.Text, Shapes.Left);
             Shapes.Text(g, a.Hint, Theme.UiSmall, new Rectangle(x + Ui.D(16), (int)r.Y + Ui.D(62), cardW - Ui.D(24), Ui.D(16)), Theme.Muted, Shapes.Left);

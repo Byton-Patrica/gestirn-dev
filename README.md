@@ -1,6 +1,6 @@
 # Gestirn dev
 
-<p align="center"><img src="Assets/Branding/GestirnEra-datarot-256.png" width="128" alt="GestirnEra DataRot icon"></p>
+<p align="center"><img src="Assets/Branding/GestirnEra-70s-256.png" width="128" alt="Gestirn dev 70s icon"></p>
 
 Gestirn dev is a modern, lightweight C/C++ IDE for Windows, built from the
 Bloodshed/Orwell Dev-C++ source line. It keeps what made Dev-C++ easy (one
@@ -11,14 +11,41 @@ Dev-C++ does not need to be installed.
 
 ## Download
 
-**[Gestirn dev 0.52 for Windows (64-bit, includes compiler)](https://github.com/Byton-Patrica/gestirn-dev/releases/download/v0.52/Gestirn-dev-0.52-win64.zip)**
+**[Gestirn dev 0.6 for Windows (64-bit, includes compiler)](https://github.com/Byton-Patrica/gestirn-dev/releases/download/v0.6/Gestirn-dev-0.6-win64.zip)**
 — unzip anywhere and run `Gestirn-dev.exe`. Nothing else to install.
 
-- [Lite package without the compiler](https://github.com/Byton-Patrica/gestirn-dev/releases/download/v0.52/Gestirn-dev-0.52-lite.zip)
+- [Lite package without the compiler](https://github.com/Byton-Patrica/gestirn-dev/releases/download/v0.6/Gestirn-dev-0.6-lite.zip)
   (uses g++ from `PATH`, MSYS2 or an existing Dev-C++).
 - [All releases](https://github.com/Byton-Patrica/gestirn-dev/releases)
 
 The green "Code → Download ZIP" button on GitHub only gives the source code.
+
+## 0.6
+
+- **A new look, the 70s theme**: warm cream paper, dark brown ink, the red-orange
+  of the new icon and its six-colour rainbow stripe (on the top bar, status bar
+  progress, welcome page and splash). Cards look printed, with hard offset
+  shadows, and titles are set in a bold serif. The original ink-black and orange
+  look is still there as the **dark theme** (Settings > Appearance, or Ctrl+Alt+T).
+- **New icon** (GestirnEra 70s) for the program, shortcuts and splash.
+- **More room for code**: the Compile and Run buttons are smaller.
+- **Better error translation**: about 100 rules now cover the errors beginners
+  meet most (missing semicolons and braces, undeclared names with the right
+  `#include`, linker errors, type mismatches, printf formats, const, old
+  headers, C++ standard problems and more). Messages are forced to English
+  before matching, so it also works with localised compilers.
+- **Simple error translation** switch: shows each error in plain words first,
+  then how to fix it. The original compiler text stays one hover away.
+- **Reward mode** switch: an English cheer in the status bar and Output panel on
+  every run (ten lines in rotation), and a much more excited one (five in
+  rotation) when the code finally compiles after it failed.
+- **AI fix** (experimental): configure any OpenAI-compatible address, API key and
+  model, and an "AI fix" button appears in the status bar when there are
+  errors. It explains the problem and proposes corrected code, with the changed
+  lines highlighted; apply it with one click (Ctrl+Z undoes it). The key is
+  stored encrypted for your Windows account.
+- **Settings reorganised** into eight categories: Editor, Files, Compiler,
+  Learning aids, AI fix, Appearance, Terminal, Updates and about.
 
 ## 0.52
 
@@ -155,6 +182,7 @@ Source layout:
 
 ## Earlier versions
 
+- **0.52** — performance analysis, update notifications, more animation.
 - **0.51** — standalone with bundled MinGW, ConPTY terminal for AI agents, light/dark themes.
 - **0.5** — new editor, debugger, projects, autosave and sessions.
 - **0.12** — compile and run from the editor, error navigation, tabs.
@@ -162,7 +190,7 @@ Source layout:
 
 ## Branding
 
-The GestirnEra DataRot icon, now with rounded corners, is used for the
+The Gestirn dev 70s icon is used for the
 application, its shortcuts and this README. The assets are in
 `Assets/Branding/`.
 

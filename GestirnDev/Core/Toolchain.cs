@@ -195,6 +195,9 @@ internal static class Toolchain
             WorkingDirectory = cwd, StandardOutputEncoding = ConsoleEncoding, StandardErrorEncoding = ConsoleEncoding,
         };
         psi.EnvironmentVariables["PATH"] = Path.GetDirectoryName(exe) + ";" + Environment.GetEnvironmentVariable("PATH");
+        // Messages are matched and translated from their English wording, so force it whatever the system language.
+        psi.EnvironmentVariables["LC_ALL"] = "C";
+        psi.EnvironmentVariables["LANG"] = "C";
         using (var p = new Process { StartInfo = psi })
         {
             p.Start();
@@ -436,7 +439,7 @@ internal static class Toolchain
                     Severity = kind == "warning" ? Severity.Warning : kind == "note" ? Severity.Note : Severity.Error,
                     Message = m.Groups["msg"].Value.Trim(),
                 };
-                d.Hint = Hints.For(d.Message);
+                Hints.Apply(d);
                 list.Add(d);
                 continue;
             }
@@ -444,7 +447,7 @@ internal static class Toolchain
             if (m.Success)
             {
                 var d = new Diagnostic { File = Resolve(m.Groups["file"].Value, baseDir), Line = -1, Severity = Severity.Error, Message = m.Groups["msg"].Value.Trim() };
-                d.Hint = Hints.For(d.Message);
+                Hints.Apply(d);
                 list.Add(d);
                 continue;
             }
@@ -452,7 +455,7 @@ internal static class Toolchain
             if (m.Success && !raw.Contains("ld returned 1 exit status"))
             {
                 var d = new Diagnostic { Line = -1, Severity = Severity.Error, Message = m.Groups["msg"].Value.Trim() };
-                d.Hint = Hints.For(d.Message);
+                Hints.Apply(d);
                 list.Add(d);
             }
         }
@@ -464,68 +467,6 @@ internal static class Toolchain
         try { return Path.GetFullPath(Path.IsPathRooted(file) ? file : Path.Combine(baseDir, file)); }
         catch (ArgumentException) { return file; }
         catch (NotSupportedException) { return file; }
-    }
-}
-
-// Plain-language explanations for the GCC messages beginners hit most often.
-internal static class Hints
-{
-    private static readonly string[] StdNames = { "cout", "cin", "endl", "string", "vector", "map", "set", "sort", "max", "min", "swap", "printf", "scanf" };
-
-    public static string For(string message)
-    {
-        var m = message;
-        if (m.Contains("stray '\\3") || m.Contains("stray '\\2") || Regex.IsMatch(m, "stray '\\\\\\d{3}'"))
-            return L.T("Your code contains a full-width (Chinese) character such as ；，（ ） or a Chinese quote. Replace it with the ASCII version.",
-                       "代码中混入了中文字符（如中文标点 ；，（）“”）。请改成英文半角符号。");
-        if (Regex.IsMatch(m, "^expected (?:',' or )?';'"))
-            return L.T("A semicolon ; is probably missing, usually at the end of the line before.", "可能少了分号 ;，通常在上一行的末尾。");
-        var nd = Regex.Match(m, "'([A-Za-z_]\\w*)' (?:was not declared in this scope|has not been declared|is not a member of 'std')");
-        if (nd.Success)
-        {
-            string name = nd.Groups[1].Value;
-            if (StdNames.Contains(name))
-                return L.T("'" + name + "' is part of the standard library: add the right #include (e.g. <iostream>) and write std::" + name + " or add 'using namespace std;'.",
-                           "'" + name + "' 属于标准库：请加上对应的 #include（如 <iostream>），并写成 std::" + name + "，或添加 using namespace std;");
-            return L.T("'" + name + "' is used before it is declared. Check the spelling, or declare it first.", "'" + name + "' 在声明之前就被使用了：检查拼写，或先声明再使用。");
-        }
-        if (m.Contains("undefined reference to `WinMain"))
-            return L.T("The program has no main function (or it is misspelled).", "程序缺少 main 函数（或拼写有误）。");
-        if (m.Contains("undefined reference to"))
-            return L.T("The linker can't find this function's body: it is declared but never defined, or its .cpp file isn't part of the build.",
-                       "链接器找不到这个函数的实现：它只声明没定义，或者对应的 .cpp 文件没有加入编译。");
-        if (m.StartsWith("expected '}' at end of input"))
-            return L.T("Braces don't match: a closing } is missing.", "大括号不配对：缺少一个右括号 }。");
-        if (m.StartsWith("expected primary-expression"))
-            return L.T("The expression is incomplete here: a value or variable is missing.", "这里的表达式不完整：缺少数值或变量。");
-        if (m.StartsWith("missing terminating"))
-            return L.T("A string or character literal is missing its closing quote.", "字符串或字符缺少结尾的引号。");
-        if (m.StartsWith("redefinition of") || m.StartsWith("redeclaration of") || m.Contains("previously declared"))
-            return L.T("The same name is defined twice in the same scope.", "同一作用域里重复定义了同一个名字。");
-        if (m.StartsWith("no matching function for call to"))
-            return L.T("The arguments don't match any version of this function: check their number and types.", "参数和函数定义对不上：检查参数的个数和类型。");
-        if (m.StartsWith("invalid conversion from") || m.StartsWith("cannot convert"))
-            return L.T("Type mismatch: the value can't be converted to the type expected here.", "类型不匹配：这个值不能转换成这里需要的类型。");
-        if (m.Contains("control reaches end of non-void function"))
-            return L.T("This function should return a value, but some path ends without return.", "这个函数应该返回值，但有的分支没有写 return。");
-        if (m.StartsWith("unused variable"))
-            return L.T("The variable is declared but never used.", "变量声明了但从未使用。");
-        if (m.Contains("comparison between signed and unsigned") || m.Contains("comparison of integer expressions of different signedness"))
-            return L.T("Comparing signed and unsigned integers can give surprising results (e.g. i < v.size()). Use the same type for both.",
-                       "有符号和无符号整数比较可能出错（如 i < v.size()）。让两边类型一致。");
-        if (m.Contains("No such file or directory"))
-            return L.T("The file can't be found: check the #include name and its folder.", "找不到文件：检查 #include 的文件名和所在目录。");
-        if (m.Contains("Permission denied"))
-            return L.T("The output file is locked, usually because the program is still running. Close it and build again.", "输出文件被占用，通常是程序还在运行。关闭它后重新编译。");
-        if (m.StartsWith("'main' must return 'int'"))
-            return L.T("Declare main as 'int main()' and return 0.", "main 必须写成 int main()，并 return 0;");
-        if (m.Contains("lvalue required"))
-            return L.T("You can only assign to a variable. Did you mean == instead of = ?", "只有变量才能被赋值。这里是不是想写比较 == 而不是赋值 = ？");
-        if (m.Contains("suggest parentheses around assignment used as truth value"))
-            return L.T("An assignment = is used as a condition. Did you mean == ?", "条件里用了赋值 =，是不是想写 == ？");
-        if (m.Contains("array subscript is above array bounds") || m.Contains("out of bounds"))
-            return L.T("The index goes past the end of the array.", "数组下标越界。");
-        return null;
     }
 }
 }

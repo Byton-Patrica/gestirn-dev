@@ -846,8 +846,10 @@ internal sealed class ProblemsView : Panel
         int x = r.X + Ui.D(38);
         string where = d.File != null ? Path.GetFileName(d.File) + (d.Line >= 0 ? ":" + (d.Line + 1) + (d.Col > 0 ? ":" + d.Col : "") : "") : "";
         int ww = TextRenderer.MeasureText(where, Theme.UiSmall, Size.Empty, TextFormatFlags.NoPadding).Width;
-        Shapes.Text(g, d.Message, Theme.Ui9, new Rectangle(x, r.Y + Ui.D(3), r.Right - x - ww - Ui.D(24), Ui.D(20)), Theme.Text, Shapes.Left);
+        Shapes.Text(g, d.Headline, Theme.Ui9, new Rectangle(x, r.Y + Ui.D(3), r.Right - x - ww - Ui.D(24), Ui.D(20)), Theme.Text, Shapes.Left);
         Shapes.Text(g, where, Theme.UiSmall, new Rectangle(r.X, r.Y + Ui.D(3), r.Width - Ui.D(14), Ui.D(20)), Theme.Muted, Shapes.Right);
+        if (Hints.SimpleMode && !string.IsNullOrEmpty(d.Plain) && string.IsNullOrEmpty(d.Hint))
+            Shapes.Text(g, d.Message, Theme.UiSmall, new Rectangle(x, r.Y + Ui.D(22), r.Right - x - Ui.D(24), Ui.D(18)), Theme.Muted, Shapes.Left);
         if (!string.IsNullOrEmpty(d.Hint))
         {
             Glyphs.Draw(g, "info", new Rectangle(x, r.Y + Ui.D(27), Ui.D(8), Ui.D(8)), Theme.Lime);

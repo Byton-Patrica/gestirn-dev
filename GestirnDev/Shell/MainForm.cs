@@ -12,7 +12,7 @@ namespace GestirnDev
 {
 internal sealed partial class MainForm : Form
 {
-    public const string Version = "0.52";
+    public const string Version = "0.6";
     public static MainForm Instance;
 
     private readonly AppSettings settings;
@@ -33,17 +33,17 @@ internal sealed partial class MainForm : Form
     private PixelButton runBtn, buildBtn, debugBtn, stopBtn;
     private readonly ToolTip tips = new ToolTip();
     private readonly ActivityRail rail = new ActivityRail();
-    private readonly Card sidebar = new Card { Fill = Theme.Panel, Radius = 12, Outline = Theme.EdgeSoft };
+    private readonly Card sidebar = new Card { Fill = Theme.Panel, Radius = 12, Outline = Theme.Frame };
     private readonly ExplorerPanel explorer = new ExplorerPanel();
     private readonly OutlinePanel outline = new OutlinePanel();
     private readonly SearchPanel search = new SearchPanel();
     private readonly DebugPanel debugPanel = new DebugPanel();
     private readonly DragHandle sideHandle = new DragHandle(true), panelHandle = new DragHandle(false);
-    private readonly Card editorCard = new Card { Fill = Theme.EditorBg, Radius = 12, Outline = Theme.EdgeSoft };
+    private readonly Card editorCard = new Card { Fill = Theme.EditorBg, Radius = 12, Outline = Theme.Frame };
     private readonly TabStrip tabs = new TabStrip();
     private readonly WelcomePage welcome = new WelcomePage();
     private readonly FindBar findBar = new FindBar();
-    private readonly Card bottom = new Card { Fill = Theme.Panel, Radius = 12, Outline = Theme.EdgeSoft };
+    private readonly Card bottom = new Card { Fill = Theme.Panel, Radius = 12, Outline = Theme.Frame };
     private readonly PanelTabs panelTabs = new PanelTabs();
     private readonly OutputView output = new OutputView();
     private readonly ProblemsView problems = new ProblemsView();
@@ -110,14 +110,14 @@ internal sealed partial class MainForm : Form
 
     private Icon LoadIcon()
     {
-        string path = Path.Combine(Application.StartupPath, "GestirnEra-datarot.ico");
+        string path = Path.Combine(Application.StartupPath, "GestirnEra-70s.ico");
         try { return File.Exists(path) ? new Icon(path, Ui.D(32), Ui.D(32)) : null; }
         catch (ArgumentException) { return null; }
     }
 
     private Image LoadLogo()
     {
-        string path = Path.Combine(Application.StartupPath, "GestirnEra-datarot-256.png");
+        string path = Path.Combine(Application.StartupPath, "GestirnEra-70s-256.png");
         try
         {
             if (File.Exists(path)) using (var img = Image.FromFile(path)) return new Bitmap(img);
@@ -287,8 +287,9 @@ internal sealed partial class MainForm : Form
 
     private PixelButton TopButton(string glyph, string text, string tip, ButtonKind kind, Action action)
     {
-        var b = new PixelButton { Glyph = glyph, Text = text ?? "", Kind = kind, Radius = 9, Height = Ui.D(32) };
-        b.Width = text == null ? Ui.D(34) : b.PreferredWidth();
+        // Compact on purpose: the code area is the star of the window, not the toolbar.
+        var b = new PixelButton { Glyph = glyph, Text = text ?? "", Kind = kind, Radius = 8, Height = Ui.D(26), Font = Theme.Ui9 };
+        b.Width = text == null ? Ui.D(28) : b.PreferredWidth();
         b.Click += (_, _) => action();
         tips.SetToolTip(b, tip);
         topBar.Controls.Add(b);
@@ -306,7 +307,7 @@ internal sealed partial class MainForm : Form
         if (topBar == null || IsDisposed) return;
         int w = ClientSize.Width, h = ClientSize.Height;
         if (w <= 0 || h <= 0) return;
-        int top = Ui.D(46), statusH = Ui.D(28), gap = Ui.D(8), railW = Ui.D(54);
+        int top = Ui.D(44), statusH = Ui.D(28), gap = Ui.D(8), railW = Ui.D(54);
         topBar.SetBounds(0, 0, w, top);
         status.SetBounds(0, h - statusH, w, statusH);
         rail.SetBounds(0, top, railW, h - top - statusH);
@@ -1082,11 +1083,7 @@ internal sealed partial class MainForm : Form
             g.Clear(Theme.Bg);
             int size = Ui.D(26);
             var r = new Rectangle(Ui.D(14), (Height - size) / 2, size, size);
-            if (Logo != null)
-            {
-                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                g.DrawImage(Logo, r);
-            }
+            if (Logo != null) Shapes.DrawRounded(g, Logo, r, Ui.D(6));
             if (busy)
             {
                 // Logo pixels "compile": a few lime and orange pixels blink around the mark.
@@ -1109,7 +1106,8 @@ internal sealed partial class MainForm : Form
                 var c = p[5] == 0 ? Theme.Lime : p[5] == 1 ? Theme.Orange : Theme.Gold;
                 using (var b = new SolidBrush(Ui.Alpha(c, (int)(255 * Math.Max(0, 1 - life))))) g.FillRectangle(b, p[0], p[1], size2, size2);
             }
-            using (var pen = new Pen(Theme.EdgeSoft)) g.DrawLine(pen, 0, Height - 1, Width, Height - 1);
+            if (Theme.IsLight) Shapes.Stripes(g, new Rectangle(0, Height - Ui.D(3), Width, Ui.D(3)));
+            else using (var pen = new Pen(Theme.EdgeSoft)) g.DrawLine(pen, 0, Height - 1, Width, Height - 1);
         }
 
         protected override void Dispose(bool disposing) { if (disposing) Animator.RemoveTicker(ticker); base.Dispose(disposing); }

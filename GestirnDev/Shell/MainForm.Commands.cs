@@ -130,7 +130,7 @@ internal sealed partial class MainForm
         var compileRun = C("build.compileRun", "Compile && Run", "编译并运行", Keys.F11, () => Compile(true, false, false), "run");
         var rebuild = C("build.rebuild", "Rebuild All", "全部重新编译", Keys.F12, () => Compile(false, true, false), "build");
         var stop = C("build.stop", "Stop", "停止", Keys.F6, () => StopAll(), "stop");
-        var buildSettings = C("build.settings", "Compiler Settings...", "编译器设置...", Keys.None, OpenSettings, "gear");
+        var buildSettings = C("build.settings", "Compiler Settings...", "编译器设置...", Keys.None, () => OpenSettings(), "gear");
 
         var debugStart = C("debug.start", "Start / Continue", "开始/继续调试", Keys.F5, DebugStartOrContinue, "debug");
         var stepOver = C("debug.over", "Step Over", "单步跳过", Keys.F7, () => DebugStep("over"), "stepover");
@@ -149,7 +149,7 @@ internal sealed partial class MainForm
             foreach (var d in docs) { foreach (int l in d.Editor.Breakpoints.ToList()) d.Editor.ToggleBreakpoint(l); }
         }, "trash");
 
-        var openSettings = C("tools.settings", "Settings...", "设置...", Keys.Control | Keys.Oemcomma, OpenSettings, "gear");
+        var openSettings = C("tools.settings", "Settings...", "设置...", Keys.Control | Keys.Oemcomma, () => OpenSettings(), "gear");
         var openTerminal = C("tools.terminal", "Open Terminal", "打开终端", Keys.None, () => ShowPanel("terminal"), "term");
         var openScratch = C("tools.scratch", "Open Scratch Folder", "打开草稿文件夹", Keys.None, () => { string d = Path.Combine(DefaultDocumentsFolder(), "scratch"); Directory.CreateDirectory(d); Process.Start("explorer.exe", "\"" + d + "\""); }, "folder");
         var openData = C("tools.data", "Open Settings Folder", "打开配置文件夹", Keys.None, () => { Directory.CreateDirectory(AppSettings.Folder); Process.Start("explorer.exe", "\"" + AppSettings.Folder + "\""); }, "folder");
@@ -161,6 +161,7 @@ internal sealed partial class MainForm
 
         var profileCmd = C("build.profile", "Profile (Performance Analysis)", "性能分析", Keys.Control | Keys.F11, () => Compile(true, false, false, true), "profile");
         var viewProfile = C("view.profile", "Profile Results", "性能分析结果", Keys.None, () => ShowPanel("profile"), "profile");
+        var aiFix = C("build.aifix", "AI Fix Errors (experimental)", "AI 纠错（实验性）", Keys.None, AiFixNow, "spark");
         var syntax = C("build.syntax", "Syntax Check", "语法检查", Keys.Control | Keys.F9, SyntaxCheck, "check");
         var progArgs = C("build.args", "Program Arguments...", "程序运行参数...", Keys.None, SetProgramArguments, "term");
         var projNew = C("project.newFile", "New File in Project...", "在项目中新建文件...", Keys.None, NewFileInProject, "new");
@@ -205,7 +206,7 @@ internal sealed partial class MainForm
         menu.Items.Add(MenuOf("Insert", "插入", insDate, insHeader, insGuard, null, insMain, insClass));
         menu.Items.Add(MenuOf("View", "视图", commandPalette, quickOpen, null, viewExplorer, viewSearch, viewOutline, viewDebug, null, toggleSide, togglePanel, viewProblems, viewOutput, viewTerminal, viewProfile, null, themeCmd, animCmd, null, zoomIn, zoomOut, zoomReset));
         menu.Items.Add(MenuOf("Project", "项目", newProject, openProject, null, projNew, projAdd, projRemove, null, projOptions, closeFolder));
-        menu.Items.Add(MenuOf("Build", "编译", compile, run, compileRun, rebuild, syntax, stop, null, profileCmd, viewProfile, null, progArgs, buildSettings));
+        menu.Items.Add(MenuOf("Build", "编译", compile, run, compileRun, rebuild, syntax, stop, null, profileCmd, viewProfile, aiFix, null, progArgs, buildSettings));
         menu.Items.Add(MenuOf("Debug", "调试", debugStart, stepOver, stepInto, stepOut, debugStop, null, toggleBp, addWatch, clearBps));
         menu.Items.Add(MenuOf("Terminal", "终端", newTerm, viewTerminal, null, termSide, termPanel));
         menu.Items.Add(MenuOf("Tools", "工具", openSettings, format, openTerminal, null, openScratch, openData));
@@ -530,6 +531,7 @@ internal sealed partial class MainForm
             else if (result.Success)
             {
                 lastExe = result.ExePath;
+                bool triumph = RewardBuildSucceeded();
                 string secs = result.Elapsed.TotalSeconds.ToString("0.00");
                 output.Append((result.UpToDate ? L.T("Up to date: ", "已是最新：") : L.T("Build succeeded: ", "编译成功：")) + result.ExePath + "  (" + secs + "s)", Theme.Lime);
                 status.Message = L.T("Build succeeded", "编译成功") + "  ·  " + secs + "s" + (warnings > 0 ? "  ·  " + warnings + L.T(" warnings", " 个警告") : "");
@@ -542,17 +544,18 @@ internal sealed partial class MainForm
                     toasts.Show(L.T("Build succeeded", "编译成功"), Path.GetFileName(result.ExePath) + "  ·  " + secs + "s", ToastKind.Success, 2200);
                 if (profile) StartProfiling(result.ExePath, compiler);
                 else if (debug) StartDebugging(result.ExePath, target != null ? target.Directory : Path.GetDirectoryName(source));
-                else if (run) Launch(result.ExePath);
+                else if (run) Launch(result.ExePath, !triumph);
             }
             else
             {
+                RewardBuildFailed();
                 output.Append(L.T("Build failed.", "编译失败。"), Theme.Red);
                 status.Message = string.Format(L.T("Build failed · {0} errors", "编译失败 · {0} 个错误"), Math.Max(errors, 1));
                 status.Flash(Theme.Red);
                 status.Shake();
                 var first = result.Diagnostics.FirstOrDefault(d => d.Severity == Severity.Error);
                 toasts.Show(string.Format(L.T("Build failed · {0} errors", "编译失败 · {0} 个错误"), Math.Max(errors, 1)),
-                    first != null ? (first.Hint ?? first.Message) : L.T("See the Output panel for details.", "详情见“输出”面板。"), ToastKind.Error, 5000);
+                    first != null ? (first.Headline + (first.Hint != null ? "\n" + first.Hint : "")) : L.T("See the Output panel for details.", "详情见“输出”面板。"), ToastKind.Error, 5000);
                 ShowPanel(result.Diagnostics.Count > 0 ? "problems" : "output");
                 if (first != null && first.File != null && first.Line >= 0 && File.Exists(first.File)) GoToDiagnostic(first);
             }
@@ -586,7 +589,7 @@ internal sealed partial class MainForm
         else Compile(true, false, false);
     }
 
-    private void Launch(string exe)
+    private void Launch(string exe, bool cheer = true)
     {
         if (!File.Exists(exe)) { toasts.Show(L.T("Nothing to run", "没有可运行的程序"), exe, ToastKind.Warning); return; }
         if (project != null && project.Type != DevProject.TypeConsole && project.Type != DevProject.TypeGui)
@@ -604,6 +607,7 @@ internal sealed partial class MainForm
             output.Append(L.T("Running ", "正在运行 ") + Path.GetFileName(exe) + L.T(" in its own console.", "（独立控制台窗口）"), Theme.TextDim);
             status.Message = L.T("Running ", "运行中 ") + Path.GetFileName(exe);
             status.Invalidate();
+            if (cheer) RewardOnRun();
         }
         catch (Exception ex) when (ex is Win32Exception || ex is InvalidOperationException)
         {
@@ -650,6 +654,7 @@ internal sealed partial class MainForm
         status.Set("errors", errors.ToString(), "error", errors > 0 ? Theme.Red : Theme.Muted, false);
         status.Set("warnings", warnings.ToString(), "warning", warnings > 0 ? Theme.Gold : Theme.Muted, false);
         panelTabs.Counts["problems"] = errors + warnings;
+        RefreshAiButton(errors);
         panelTabs.Invalidate();
     }
 
@@ -660,7 +665,7 @@ internal sealed partial class MainForm
             var doc = OpenFile(d.File);
             if (doc != null && d.Line >= 0) { doc.Editor.GoTo(d.Line, Math.Max(0, d.Col - 1)); doc.Editor.Focus(); }
         }
-        else toasts.Show(L.T("Problem", "问题"), d.Message + (d.Hint != null ? "\n" + d.Hint : ""), ToastKind.Warning, 5000);
+        else toasts.Show(L.T("Problem", "问题"), d.Headline + (d.Hint != null ? "\n" + d.Hint : ""), ToastKind.Warning, 5000);
     }
 
     // ------------------------------------------------------------------ debugging
@@ -850,11 +855,11 @@ internal sealed partial class MainForm
         if (!quiet) { status.Message = L.T("Code formatted (Ctrl+Z to undo)", "代码已格式化（Ctrl+Z 可撤销）"); status.Flash(Theme.Lime); }
     }
 
-    private void OpenSettings()
+    private void OpenSettings(string page = null)
     {
         string oldLanguage = settings.Language;
         bool oldSidebarTerminal = settings.TerminalInSidebar;
-        using (var dialog = new SettingsDialog(settings, CheckForUpdatesFromSettings))
+        using (var dialog = new SettingsDialog(settings, CheckForUpdatesFromSettings, page, TestAiConnection))
         {
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
         }
@@ -868,6 +873,9 @@ internal sealed partial class MainForm
         }
         autosaveTimer.Interval = Math.Max(300, settings.AutoSaveDelay);
         Animator.Reduced = !settings.Animations;
+        Hints.SimpleMode = settings.SimpleErrors;
+        problems.Invalidate(true);
+        RefreshAiButton(lastDiagnostics.Count(d => d.Severity == Severity.Error));
         ApplyTheme(ResolveLight(settings.Theme));
         terminal.DefaultShell = settings.TerminalShell;
         if (oldSidebarTerminal != settings.TerminalInSidebar) PlaceTerminal(settings.TerminalInSidebar);
@@ -889,6 +897,7 @@ internal sealed partial class MainForm
             case "indent": OpenSettings(); break;
             case "project": ShowView("explorer"); ToggleSidebar(true); break;
             case "enc": ChooseEncoding(); break;
+            case "aifix": AiFixNow(); break;
             case "update": if (availableRelease != null) ShowUpdateCard(availableRelease); break;
             case "eol":
                 if (active == null) break;

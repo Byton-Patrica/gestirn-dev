@@ -174,7 +174,7 @@ internal sealed class PixelButton : Control
         int text = string.IsNullOrEmpty(Text) ? 0 : TextRenderer.MeasureText(Text, Font, Size.Empty, TextFormatFlags.NoPadding).Width;
         int gap = glyph > 0 && text > 0 ? Ui.D(8) : 0;
         if (text == 0) return Math.Max(Height, glyph + Ui.D(16));
-        return glyph + gap + text + Ui.D(28);
+        return glyph + gap + text + Ui.D(24);
     }
 
     protected override void OnMouseEnter(EventArgs e) { hover.To(1f, 120); base.OnMouseEnter(e); }
@@ -218,7 +218,7 @@ internal sealed class PixelButton : Control
         {
             case ButtonKind.Primary:
                 fill = Ui.Lerp(Theme.Orange, Theme.OrangeHot, h);
-                edge = Color.Transparent;
+                edge = Theme.IsLight ? Theme.Outline : Color.Transparent;
                 ink = glyphColor = Theme.Ink;
                 break;
             case ButtonKind.Danger:

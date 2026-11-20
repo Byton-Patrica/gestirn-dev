@@ -8,6 +8,36 @@ using System.Text;
 
 namespace GestirnDev
 {
+// API keys are stored encrypted for the current Windows user (DPAPI), never as plain text.
+internal static class Secret
+{
+    private const string Prefix = "dpapi:";
+    private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("gestirn-dev");
+
+    public static string Conceal(string plain)
+    {
+        if (string.IsNullOrEmpty(plain)) return "";
+        try
+        {
+            var bytes = System.Security.Cryptography.ProtectedData.Protect(Encoding.UTF8.GetBytes(plain), Entropy, System.Security.Cryptography.DataProtectionScope.CurrentUser);
+            return Prefix + Convert.ToBase64String(bytes);
+        }
+        catch (System.Security.Cryptography.CryptographicException) { return ""; }
+    }
+
+    public static string Reveal(string stored)
+    {
+        if (string.IsNullOrEmpty(stored) || !stored.StartsWith(Prefix, StringComparison.Ordinal)) return "";
+        try
+        {
+            var bytes = System.Security.Cryptography.ProtectedData.Unprotect(Convert.FromBase64String(stored.Substring(Prefix.Length)), Entropy, System.Security.Cryptography.DataProtectionScope.CurrentUser);
+            return Encoding.UTF8.GetString(bytes);
+        }
+        catch (System.Security.Cryptography.CryptographicException) { return ""; }
+        catch (FormatException) { return ""; }
+    }
+}
+
 internal sealed class SessionFile
 {
     public string Path;
@@ -62,12 +92,19 @@ internal sealed class AppSettings
     public bool AutoPairs = true;
     public bool RestoreSession = true;
     public bool FormatOnSave;
-    public string Theme = "auto";
+    public string Theme = "light";
     public bool Animations = true;
     public string TerminalShell = "auto";
     public bool TerminalInSidebar;
     public string ProgramArgs = "";
     public bool CheckUpdates = true;
+    public bool RewardMode;                  // encouraging lines after each run
+    public bool SimpleErrors = true;         // compiler errors in plain language
+    public bool AiFixEnabled;                // experimental: AI fixes for compile errors
+    public string AiBaseUrl = "https://api.openai.com/v1";
+    public string AiModel = "gpt-4o-mini";
+    public string AiKey = "";
+    public int Version;                      // settings layout version, for one-off migrations
     public string SkippedVersion = "";
 
     public string Workspace = "";
@@ -131,6 +168,13 @@ internal sealed class AppSettings
                     case "TerminalInSidebar": s.TerminalInSidebar = v == "1"; break;
                     case "ProgramArgs": s.ProgramArgs = v; break;
                     case "CheckUpdates": s.CheckUpdates = v != "0"; break;
+                    case "RewardMode": s.RewardMode = v == "1"; break;
+                    case "SimpleErrors": s.SimpleErrors = v != "0"; break;
+                    case "AiFixEnabled": s.AiFixEnabled = v == "1"; break;
+                    case "AiBaseUrl": if (v.Length > 0) s.AiBaseUrl = v; break;
+                    case "AiModel": if (v.Length > 0) s.AiModel = v; break;
+                    case "AiKey": s.AiKey = Secret.Reveal(v); break;
+                    case "SettingsVersion": int.TryParse(v, out s.Version); break;
                     case "SkippedVersion": s.SkippedVersion = v; break;
                     case "Workspace": s.Workspace = v; break;
                     case "Project": s.Project = v; break;
@@ -163,6 +207,12 @@ internal sealed class AppSettings
         }
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
+        // 0.6 introduced the 70s light theme as the default look; people who had left the theme on "auto" get it.
+        if (File.Exists(FilePath) && s.Version < 6)
+        {
+            if (s.Theme == "auto") s.Theme = "light";
+            s.Version = 6;
+        }
         if (s.FontSize < 7 || s.FontSize > 36) s.FontSize = 11f;
         if (s.TabSize < 1 || s.TabSize > 16) s.TabSize = 4;
         if (s.AutoSaveDelay < 200) s.AutoSaveDelay = 1000;
@@ -182,6 +232,9 @@ internal sealed class AppSettings
             "Theme=" + Theme, "Animations=" + (Animations ? "1" : "0"), "TerminalShell=" + TerminalShell,
             "TerminalInSidebar=" + (TerminalInSidebar ? "1" : "0"), "ProgramArgs=" + ProgramArgs,
             "CheckUpdates=" + (CheckUpdates ? "1" : "0"), "SkippedVersion=" + SkippedVersion,
+            "RewardMode=" + (RewardMode ? "1" : "0"), "SimpleErrors=" + (SimpleErrors ? "1" : "0"),
+            "AiFixEnabled=" + (AiFixEnabled ? "1" : "0"), "AiBaseUrl=" + AiBaseUrl, "AiModel=" + AiModel, "AiKey=" + Secret.Conceal(AiKey),
+            "SettingsVersion=6",
             "Workspace=" + Workspace, "Project=" + Project,
             "SidebarWidth=" + SidebarWidth, "PanelHeight=" + PanelHeight, "SidebarVisible=" + (SidebarVisible ? "1" : "0"),
             "PanelVisible=" + (PanelVisible ? "1" : "0"), "SidebarView=" + SidebarView,

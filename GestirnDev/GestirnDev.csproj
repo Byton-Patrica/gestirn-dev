@@ -6,14 +6,15 @@
     <TargetFramework>net48</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <LangVersion>latest</LangVersion>
-    <ApplicationIcon>GestirnEra-datarot.ico</ApplicationIcon>
+    <ApplicationIcon>GestirnEra-70s.ico</ApplicationIcon>
     <AssemblyName>Gestirn-dev</AssemblyName>
     <RootNamespace>GestirnDev</RootNamespace>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Microsoft.VisualBasic" />
-    <Content Include="GestirnEra-datarot.ico" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\Assets\Branding\GestirnEra-datarot-256.png" Link="GestirnEra-datarot-256.png" CopyToOutputDirectory="PreserveNewest" />
+    <Reference Include="System.Security" />
+    <Content Include="GestirnEra-70s.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\Assets\Branding\GestirnEra-70s-256.png" Link="GestirnEra-70s-256.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

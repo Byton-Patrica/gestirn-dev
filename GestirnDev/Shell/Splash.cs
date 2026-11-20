@@ -53,7 +53,7 @@ internal sealed class SplashForm : Form
 
     private static Image LoadLogo()
     {
-        string path = Path.Combine(Application.StartupPath, "GestirnEra-datarot-256.png");
+        string path = Path.Combine(Application.StartupPath, "GestirnEra-70s-256.png");
         try { if (File.Exists(path)) using (var img = Image.FromFile(path)) return new Bitmap(img); }
         catch (OutOfMemoryException) { }
         catch (ArgumentException) { }
@@ -71,11 +71,13 @@ internal sealed class SplashForm : Form
         try
         {
             sample = logo != null ? new Bitmap(logo, grid, grid) : null;
+            Color paper = sample != null ? sample.GetPixel(0, 0) : Color.Empty;
             for (int y = 0; y < grid; y++)
                 for (int x = 0; x < grid; x++)
                 {
                     Color c = sample != null ? sample.GetPixel(x, y) : ((x + y) % 3 == 0 ? Theme.Orange : Theme.Gold);
-                    if (c.A < 60 || c.R + c.G + c.B < 150) continue; // fly only the bright motif; the dark tile fades in with the logo
+                    // fly only the motif (stripes, G, star); the paper colour of the tile fades in with the logo
+                    if (c.A < 60 || Math.Abs(c.R - paper.R) + Math.Abs(c.G - paper.G) + Math.Abs(c.B - paper.B) < 60) continue;
                     var to = new PointF(logoRect.X + x * size / (float)grid, logoRect.Y + y * size / (float)grid);
                     double ang = rnd.NextDouble() * Math.PI * 2;
                     float dist = Ui.D(160) + (float)rnd.NextDouble() * Ui.D(160);
@@ -132,9 +134,9 @@ internal sealed class SplashForm : Form
         g.SmoothingMode = SmoothingMode.AntiAlias;
         Shapes.StrokeRound(g, Ui.Alpha(Theme.Orange, 120), new RectangleF(0.5f, 0.5f, ClientSize.Width - 1.5f, ClientSize.Height - 1.5f), Ui.D(18), Math.Max(1f, Ui.Scale));
 
-        // halo grows as the logo forms
+        // halo grows as the logo forms (dark theme only; the 70s look is flat)
         float halo = Ease.OutCubic(Math.Min(1f, p * 1.2f));
-        if (halo > 0)
+        if (halo > 0 && !Theme.IsLight)
             using (var path = new GraphicsPath())
             {
                 var hr = RectangleF.Inflate(logoRect, logoRect.Width * 0.6f * halo, logoRect.Height * 0.5f * halo);
@@ -143,6 +145,15 @@ internal sealed class SplashForm : Form
                     g.FillPath(pg, path);
             }
 
+        if (Theme.IsLight)
+        {
+            // rainbow stripes run out sideways from behind the logo, like the icon
+            int bandH = Ui.D(34);
+            float gp = Ease.OutCubic(Math.Min(1f, p * 1.3f));
+            int half = (int)(ClientSize.Width / 2 * gp);
+            Shapes.Stripes(g, new Rectangle(ClientSize.Width / 2 - half, logoRect.Y + logoRect.Height / 2 - bandH / 2 + Ui.D(8), half * 2, bandH), (Elapsed / 2200.0) % 1.0);
+        }
+        g.SmoothingMode = SmoothingMode.AntiAlias;
         // flying pixels, then the crisp logo cross-fades in over them
         float settle = Math.Max(0f, Math.Min(1f, (p - 0.8f) / 0.2f));
         g.SmoothingMode = SmoothingMode.None;
@@ -165,8 +176,13 @@ internal sealed class SplashForm : Form
             var cm = new System.Drawing.Imaging.ColorMatrix { Matrix33 = settle };
             attrs.SetColorMatrix(cm);
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            var state = g.Save();
+            using (var clip = Shapes.Round(logoRect, Ui.D(18))) g.SetClip(clip, CombineMode.Intersect);
             g.DrawImage(logo, logoRect, 0, 0, logo.Width, logo.Height, GraphicsUnit.Pixel, attrs);
+            g.Restore(state);
             attrs.Dispose();
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            Shapes.StrokeRound(g, Ui.Alpha(Theme.Outline, (int)(255 * settle)), logoRect, Ui.D(18), Math.Max(2f, Ui.Scale * 1.5f));
         }
 
         // title letters rise in one by one

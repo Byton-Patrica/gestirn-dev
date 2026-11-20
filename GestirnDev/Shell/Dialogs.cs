@@ -76,37 +76,136 @@ internal static class Prompt
     }
 }
 
-// Settings page: grouped rows with toggles, choices and text fields.
+// Left-hand category list of the Settings dialog.
+internal sealed class SettingsNav : Control
+{
+    public sealed class Item { public string Id, Glyph, Title, Badge; }
+
+    private readonly List<Item> items = new List<Item>();
+    private readonly AnimatedFloat indicator = new AnimatedFloat(0f);
+    private int hover = -1, selected;
+    public event Action<string> Selected;
+
+    public SettingsNav()
+    {
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+        BackColor = Theme.Bg;
+        Cursor = Cursors.Hand;
+        indicator.Changed += Invalidate;
+    }
+
+    private int Slot { get { return Ui.D(42); } }
+    private float SlotY(int i) { return Ui.D(16) + i * Slot; }
+
+    public void Add(string id, string glyph, string title, string badge = null) { items.Add(new Item { Id = id, Glyph = glyph, Title = title, Badge = badge }); }
+
+    public void Select(string id, bool animate)
+    {
+        int i = items.FindIndex(t => t.Id == id);
+        if (i < 0) return;
+        selected = i;
+        if (animate) indicator.To(SlotY(i), 240, Ease.OutBack); else indicator.Snap(SlotY(i));
+        Invalidate();
+        if (Selected != null) Selected(id);
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        int h = (int)((e.Y - Ui.D(16)) / (float)Slot);
+        if (e.Y < Ui.D(16) || h < 0 || h >= items.Count) h = -1;
+        if (h != hover) { hover = h; Invalidate(); }
+    }
+
+    protected override void OnMouseLeave(EventArgs e) { base.OnMouseLeave(e); hover = -1; Invalidate(); }
+
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        base.OnMouseDown(e);
+        if (hover >= 0) Select(items[hover].Id, true);
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.Clear(Theme.Bg);
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        for (int i = 0; i < items.Count; i++)
+        {
+            var box = new RectangleF(Ui.D(10), SlotY(i) + Ui.D(2), Width - Ui.D(20), Slot - Ui.D(4));
+            bool on = i == selected;
+            if (i == selected) Shapes.FillRound(g, Theme.Raised, new RectangleF(box.X, indicator.Value + Ui.D(2), box.Width, box.Height), Ui.D(9));
+            else if (i == hover) Shapes.FillRound(g, Ui.Alpha(Theme.Hover, 150), box, Ui.D(9));
+            if (i == selected)
+                Shapes.FillRound(g, Theme.Orange, new RectangleF(Ui.D(3), indicator.Value + Ui.D(10), Ui.D(3), Slot - Ui.D(20)), Ui.D(2));
+            Glyphs.Draw(g, items[i].Glyph, new Rectangle(Ui.D(24), (int)SlotY(i) + (Slot - Ui.D(16)) / 2, Ui.D(16), Ui.D(16)), on ? Theme.Orange : i == hover ? Theme.Text : Theme.Muted);
+            int tw = TextRenderer.MeasureText(items[i].Title, Theme.Ui10, Size.Empty, TextFormatFlags.NoPadding).Width;
+            Shapes.Text(g, items[i].Title, Theme.Ui10, new Rectangle(Ui.D(50), (int)SlotY(i), Width - Ui.D(60), Slot), on ? Theme.Text : Theme.TextDim, Shapes.Left);
+            if (items[i].Badge != null)
+            {
+                var pill = new Rectangle(Ui.D(50) + tw + Ui.D(8), (int)SlotY(i) + (Slot - Ui.D(16)) / 2, TextRenderer.MeasureText(items[i].Badge, Theme.UiSmall, Size.Empty, TextFormatFlags.NoPadding).Width + Ui.D(12), Ui.D(16));
+                Shapes.FillRound(g, Ui.Alpha(Theme.Violet, 55), pill, Ui.D(8));
+                Shapes.Text(g, items[i].Badge, Theme.UiSmall, pill, Theme.Violet, Shapes.Center);
+            }
+        }
+        using (var pen = new Pen(Theme.EdgeSoft)) g.DrawLine(pen, Width - 1, 0, Width - 1, Height);
+    }
+}
+
+// Settings: categories on the left, the chosen category's options on the right.
 internal sealed class SettingsDialog : DarkDialog
 {
-    private readonly Panel body = new Panel { AutoScroll = true, BackColor = Theme.Panel };
+    private readonly SettingsNav nav = new SettingsNav();
+    private readonly Panel pageHost = new Panel();
+    private readonly Dictionary<string, Panel> pages = new Dictionary<string, Panel>();
+    private readonly Label pageTitle = new Label(), pageSub = new Label();
+    private readonly Dictionary<string, string[]> pageText = new Dictionary<string, string[]>();
+    private readonly AnimatedFloat slide = new AnimatedFloat(1f);
+    private Panel body;
     private int y;
+    private string current;
     private readonly List<Action> apply = new List<Action>();
     private readonly AppSettings settings;
+    private readonly Func<AppSettings, System.Threading.Tasks.Task<string>> aiTest;
 
-    public SettingsDialog(AppSettings settings, Func<System.Threading.Tasks.Task<string>> checkNow = null)
+    public SettingsDialog(AppSettings settings, Func<System.Threading.Tasks.Task<string>> checkNow = null,
+                          string startPage = null, Func<AppSettings, System.Threading.Tasks.Task<string>> aiTest = null)
     {
         this.settings = settings;
+        this.aiTest = aiTest;
         Text = L.T("Settings", "设置");
-        ClientSize = Ui.D(640, 640);
-        body.Bounds = new Rectangle(0, 0, ClientSize.Width, ClientSize.Height - Ui.D(64));
-        Native.DarkScrollbars(body);
-        Controls.Add(body);
-        y = Ui.D(16);
+        ClientSize = Ui.D(880, 640);
+        int navW = Ui.D(210), footerH = Ui.D(64), headerH = Ui.D(78);
 
-        Section(L.T("Editor", "编辑器"));
+        nav.SetBounds(0, 0, navW, ClientSize.Height - footerH);
+        Controls.Add(nav);
+
+        pageTitle.SetBounds(navW + Ui.D(28), Ui.D(16), ClientSize.Width - navW - Ui.D(56), Ui.D(34));
+        pageTitle.Font = Theme.UiTitle; pageTitle.ForeColor = Theme.Text; pageTitle.BackColor = Theme.Panel;
+        pageSub.SetBounds(navW + Ui.D(28), Ui.D(50), ClientSize.Width - navW - Ui.D(56), Ui.D(22));
+        pageSub.Font = Theme.Ui9; pageSub.ForeColor = Theme.Muted; pageSub.BackColor = Theme.Panel;
+        pageHost.SetBounds(navW, headerH, ClientSize.Width - navW, ClientSize.Height - headerH - footerH);
+        pageHost.BackColor = Theme.Panel;
+        Controls.Add(pageTitle); Controls.Add(pageSub); Controls.Add(pageHost);
+
+        // ---- Editor
+        Page("editor", "format", L.T("Editor", "编辑器"), L.T("How the code looks and how typing feels.", "代码的显示方式和输入手感。"));
+        Section(L.T("Text", "文字"));
         Number(L.T("Font size", "字号"), (int)Math.Round(settings.FontSize), 8, 28, v => settings.FontSize = v);
         Choice(L.T("Tab size", "缩进宽度"), new[] { "2", "4", "8" }, new[] { "2", "4", "8" }, settings.TabSize.ToString(), v => settings.TabSize = int.Parse(v));
         Toggle(L.T("Indent with spaces", "用空格缩进"), L.T("Tab inserts spaces instead of a tab character.", "Tab 键插入空格而不是制表符。"), settings.InsertSpaces, v => settings.InsertSpaces = v);
+        Section(L.T("While you type", "输入时"));
         Toggle(L.T("Auto-close brackets and quotes", "自动补全括号和引号"), null, settings.AutoPairs, v => settings.AutoPairs = v);
         Toggle(L.T("Suggestions while typing", "输入时自动提示"), L.T("Keywords, library names, snippets and words from your files.", "关键字、库函数、代码片段和文件中的标识符。"), settings.AutoComplete, v => settings.AutoComplete = v);
 
-        Section(L.T("Files", "文件"));
+        // ---- Files
+        Page("files", "folder", L.T("Files", "文件"), L.T("Saving and restoring your work.", "保存与恢复你的工作。"));
         Toggle(L.T("Auto save", "自动保存"), L.T("Saves files a moment after you stop typing and when the window loses focus.", "停止输入片刻后、窗口失去焦点时自动保存。"), settings.AutoSave, v => settings.AutoSave = v);
         Toggle(L.T("Format on save", "保存时格式化"), L.T("Runs AStyle (K&R style) when a file is saved by hand.", "手动保存时用 AStyle（K&R 风格）格式化。"), settings.FormatOnSave, v => settings.FormatOnSave = v);
         Toggle(L.T("Restore open files on start", "启动时恢复上次打开的文件"), null, settings.RestoreSession, v => settings.RestoreSession = v);
 
-        Section(L.T("Compiler", "编译器"));
+        // ---- Compiler
+        Page("compiler", "build", L.T("Compiler", "编译器"), L.T("Which g++ builds your code and with which options.", "用哪个 g++、以什么选项编译。"));
         Text2(L.T("g++ path", "g++ 路径"), settings.CompilerPath, L.T("Leave empty to detect automatically", "留空则自动检测"), v => settings.CompilerPath = v, true);
         Choice(L.T("C++ standard", "C++ 标准"), new[] { L.T("Auto (newest supported)", "自动（编译器支持的最新）"), "C++11", "C++14", "C++17", "C++20" },
             new[] { "auto", "c++11", "c++14", "c++17", "c++20" }, settings.Standard, v => settings.Standard = v);
@@ -117,46 +216,120 @@ internal sealed class SettingsDialog : DarkDialog
         Choice(L.T("Program text encoding", "程序输出编码"), new[] { L.T("Auto (GBK on Chinese Windows)", "自动（中文系统用 GBK）"), "GBK", "UTF-8" },
             new[] { "auto", "gbk", "utf8" }, settings.ExecCharset, v => settings.ExecCharset = v);
 
-        Section(L.T("Interface", "界面"));
-        Choice(L.T("Theme", "主题"), new[] { L.T("Follow Windows", "跟随系统"), L.T("Dark", "暗色"), L.T("Light", "亮色") },
-            new[] { "auto", "dark", "light" }, settings.Theme, v => settings.Theme = v);
-        Toggle(L.T("Rich animations", "复杂动画"), L.T("Ripples, gliding caret, particle bursts and staggered entrances.", "点击涟漪、光标滑动、粒子迸发、卡片依次出现等效果。"), settings.Animations, v => settings.Animations = v);
-        Choice(L.T("Terminal shell", "终端默认 Shell"), new[] { L.T("Auto (PowerShell)", "自动（PowerShell）"), "Windows PowerShell", L.T("Command Prompt", "命令提示符"), "Git Bash" },
-            new[] { "auto", "powershell", "cmd", "bash" }, settings.TerminalShell, v => settings.TerminalShell = v);
-        Toggle(L.T("Terminal in sidebar", "终端放在侧边栏"), L.T("Off: the terminal lives in the bottom panel.", "关闭时终端位于底部面板。"), settings.TerminalInSidebar, v => settings.TerminalInSidebar = v);
+        // ---- Learning aids
+        Page("learn", "check", L.T("Learning aids", "学习辅助"), L.T("Friendly help for beginners.", "给初学者的贴心帮助。"));
+        Toggle(L.T("Simple error translation", "编译简洁翻译"),
+            L.T("Explains compiler errors in plain words, with a tip on how to fix them. Great for beginners.", "把编译报错翻译成通俗易懂的说法，并告诉你怎么改，适合初学者。"),
+            settings.SimpleErrors, v => settings.SimpleErrors = v);
+        Toggle(L.T("Reward mode", "奖励模式"),
+            L.T("An encouraging line each time you run your code, and a bigger cheer when it finally works after errors.", "每次运行代码都会鼓励你一句；出错后终于成功时，会有更热烈的夸奖。"),
+            settings.RewardMode, v => settings.RewardMode = v);
+
+        // ---- AI fix
+        Page("ai", "spark", L.T("AI fix", "AI 纠错"), L.T("Let an AI model suggest fixes when your code doesn't compile.", "代码编译不过时，让 AI 模型帮你找出问题并修改。"), L.T("Experimental", "实验性"));
+        Toggle(L.T("Enable AI fix", "启用 AI 纠错"), L.T("Adds an \"AI fix\" button to the status bar when there are errors.", "有报错时，在底部状态栏出现“AI 纠错”按钮。"), settings.AiFixEnabled, v => settings.AiFixEnabled = v);
+        Section(L.T("Connection (OpenAI-compatible)", "连接（OpenAI 协议）"));
+        var url = Text2(L.T("API address", "接口地址"), settings.AiBaseUrl, "https://api.openai.com/v1", v => settings.AiBaseUrl = v.Length > 0 ? v : "https://api.openai.com/v1", false);
+        var key = Text2(L.T("API key", "API Key"), settings.AiKey, "sk-...", v => settings.AiKey = v, false, true);
+        var model = Text2(L.T("Model", "模型"), settings.AiModel, "gpt-4o-mini", v => settings.AiModel = v.Length > 0 ? v : "gpt-4o-mini", false);
+        TestRow(url, key, model);
+        Note(L.T("Your key is stored encrypted for your Windows account. When you press \"AI fix\", the current file and the compiler messages are sent to the address above.",
+                 "密钥会用你的 Windows 账户加密保存。点击“AI 纠错”时，当前文件和编译报错会被发送到上面的接口地址。"));
+
+        // ---- Appearance
+        Page("look", "palette", L.T("Appearance", "外观"), L.T("Theme, animation and language.", "主题、动画和语言。"));
+        Choice(L.T("Theme", "主题"), new[] { L.T("Follow Windows", "跟随系统"), L.T("Light (70s retro)", "亮色（70s 复古）"), L.T("Dark (classic)", "暗色（经典）") },
+            new[] { "auto", "light", "dark" }, settings.Theme, v => settings.Theme = v);
+        Toggle(L.T("Rich animations", "复杂动画"), L.T("Ripples, gliding caret, particle bursts, splash screen and staggered entrances.", "点击涟漪、光标滑动、粒子迸发、启动画面、卡片依次出现等效果。"), settings.Animations, v => settings.Animations = v);
         Choice(L.T("Language (restart to apply)", "语言（重启后生效）"), new[] { L.T("Follow Windows", "跟随系统"), "中文", "English" },
             new[] { "auto", "zh", "en" }, settings.Language, v => settings.Language = v);
 
-        Section(L.T("Updates & about", "更新与关于"));
+        // ---- Terminal
+        Page("term", "term", L.T("Terminal", "终端"), L.T("The built-in terminal, for shells and AI agents.", "内置终端，可运行 Shell 和 AI 智能体。"));
+        Choice(L.T("Default shell", "默认 Shell"), new[] { L.T("Auto (PowerShell)", "自动（PowerShell）"), "Windows PowerShell", L.T("Command Prompt", "命令提示符"), "Git Bash" },
+            new[] { "auto", "powershell", "cmd", "bash" }, settings.TerminalShell, v => settings.TerminalShell = v);
+        Toggle(L.T("Terminal in sidebar", "终端放在侧边栏"), L.T("Off: the terminal lives in the bottom panel.", "关闭时终端位于底部面板。"), settings.TerminalInSidebar, v => settings.TerminalInSidebar = v);
+
+        // ---- Updates & about
+        Page("about", "update", L.T("Updates & about", "更新与关于"), L.T("Gestirn dev is open source on GitHub.", "Gestirn dev 在 GitHub 上开源。"));
         UpdateRow(checkNow);
         Toggle(L.T("Check for updates automatically", "自动检查更新"), L.T("When online, looks for a newer release on GitHub at start. Shows nothing if you are up to date.", "联网时启动后检查 GitHub 是否有新版本；已是最新则不打扰。"), settings.CheckUpdates, v => settings.CheckUpdates = v);
         LinkRow(L.T("Project on GitHub", "GitHub 项目地址"), Updater.RepoUrl);
         LinkRow(L.T("All releases", "全部版本下载"), Updater.ReleasesUrl);
-        y += Ui.D(10);
-        body.Controls.Add(new Panel { Bounds = new Rectangle(0, y, 1, 1), BackColor = Theme.Panel });
 
-        var save = AddButton(L.T("Save", "保存"), ButtonKind.Primary, ClientSize.Width - Ui.D(232), ClientSize.Height - Ui.D(50), Ui.D(104));
-        var cancel = AddButton(L.T("Cancel", "取消"), ButtonKind.Secondary, ClientSize.Width - Ui.D(120), ClientSize.Height - Ui.D(50), Ui.D(100));
+        nav.Add("editor", "format", L.T("Editor", "编辑器"));
+        nav.Add("files", "folder", L.T("Files", "文件"));
+        nav.Add("compiler", "build", L.T("Compiler", "编译器"));
+        nav.Add("learn", "check", L.T("Learning aids", "学习辅助"));
+        nav.Add("ai", "spark", L.T("AI fix", "AI 纠错"), L.T("Beta", "实验"));
+        nav.Add("look", "palette", L.T("Appearance", "外观"));
+        nav.Add("term", "term", L.T("Terminal", "终端"));
+        nav.Add("about", "update", L.T("Updates", "更新与关于"));
+        nav.Selected += ShowPage;
+        slide.Changed += () => { if (current != null && pages.ContainsKey(current)) pages[current].Left = (int)((1f - slide.Value) * Ui.D(18)); };
+
+        var footer = new Panel { Bounds = new Rectangle(0, ClientSize.Height - footerH, ClientSize.Width, footerH), BackColor = Theme.Panel };
+        footer.Paint += (_, e) => { using (var pen = new Pen(Theme.EdgeSoft)) e.Graphics.DrawLine(pen, 0, 0, footer.Width, 0); };
+        Controls.Add(footer);
+        var save = new PixelButton { Text = L.T("Save", "保存"), Kind = ButtonKind.Primary, Bounds = new Rectangle(ClientSize.Width - Ui.D(236), Ui.D(14), Ui.D(104), Ui.D(36)) };
+        var cancel = new PixelButton { Text = L.T("Cancel", "取消"), Kind = ButtonKind.Secondary, Bounds = new Rectangle(ClientSize.Width - Ui.D(120), Ui.D(14), Ui.D(100), Ui.D(36)) };
+        footer.Controls.Add(save); footer.Controls.Add(cancel);
         save.Click += (_, _) => { foreach (var a in apply) a(); DialogResult = DialogResult.OK; };
         cancel.Click += (_, _) => DialogResult = DialogResult.Cancel;
+        Shown += (_, _) => nav.Select(startPage != null && pages.ContainsKey(startPage) ? startPage : "editor", false);
     }
 
-    private int RowWidth { get { return body.ClientSize.Width - Ui.D(40); } }
+    private void ShowPage(string id)
+    {
+        foreach (var kv in pages) kv.Value.Visible = kv.Key == id;
+        current = id;
+        string[] t = pageText[id];
+        pageTitle.Text = t[0];
+        pageSub.Text = t[1];
+        if (!Animator.Reduced) { slide.Snap(0f); slide.To(1f, 260, Ease.OutCubic); }
+        pages[id].PerformLayout();
+    }
+
+    private void Page(string id, string glyph, string title, string subtitle, string badge = null)
+    {
+        body = new Panel { AutoScroll = true, BackColor = Theme.Panel, Visible = false, Bounds = new Rectangle(0, 0, pageHost.Width, pageHost.Height) };
+        Native.DarkScrollbars(body);
+        pageHost.Controls.Add(body);
+        pages[id] = body;
+        pageText[id] = new[] { title + (badge != null ? "  ·  " + badge : ""), subtitle };
+        y = Ui.D(8);
+    }
+
+    private int RowWidth { get { return body.ClientSize.Width - Ui.D(56); } }
+    private int Pad { get { return Ui.D(28); } }
 
     private void Section(string title)
     {
-        y += Ui.D(8);
-        body.Controls.Add(new Label { Text = title.ToUpperInvariant(), Location = new Point(Ui.D(20), y), Size = new Size(RowWidth, Ui.D(22)), ForeColor = Theme.Orange, Font = Theme.UiSemi, BackColor = Theme.Panel });
+        y += Ui.D(10);
+        body.Controls.Add(new Label { Text = title.ToUpperInvariant(), Location = new Point(Pad, y), Size = new Size(RowWidth, Ui.D(22)), ForeColor = Theme.Orange, Font = Theme.UiSemi, BackColor = Theme.Panel });
         y += Ui.D(30);
+    }
+
+    private void Note(string text)
+    {
+        y += Ui.D(6);
+        int h = TextRenderer.MeasureText(text, Theme.UiSmall, new Size(RowWidth, 1000), TextFormatFlags.WordBreak).Height + Ui.D(8);
+        body.Controls.Add(new Label { Text = text, Location = new Point(Pad, y), Size = new Size(RowWidth, h), ForeColor = Theme.Muted, Font = Theme.UiSmall, BackColor = Theme.Panel });
+        y += h + Ui.D(8);
     }
 
     private void Row(string title, string desc, Control control, int controlWidth)
     {
-        int h = desc == null ? Ui.D(40) : Ui.D(56);
-        body.Controls.Add(new Label { Text = title, Location = new Point(Ui.D(20), y + Ui.D(6)), Size = new Size(RowWidth - controlWidth - Ui.D(20), Ui.D(22)), ForeColor = Theme.Text, BackColor = Theme.Panel, Font = Theme.Ui10, AutoEllipsis = true });
+        int h = desc == null ? Ui.D(44) : Ui.D(60);
+        int labelW = RowWidth - controlWidth - Ui.D(24);
+        body.Controls.Add(new Label { Text = title, Location = new Point(Pad, y + Ui.D(7)), Size = new Size(labelW, Ui.D(22)), ForeColor = Theme.Text, BackColor = Theme.Panel, Font = Theme.Ui10, AutoEllipsis = true });
         if (desc != null)
-            body.Controls.Add(new Label { Text = desc, Location = new Point(Ui.D(20), y + Ui.D(30)), Size = new Size(RowWidth - controlWidth - Ui.D(20), Ui.D(20)), ForeColor = Theme.Muted, BackColor = Theme.Panel, Font = Theme.UiSmall, AutoEllipsis = true });
-        control.Location = new Point(Ui.D(20) + RowWidth - controlWidth, y + (desc == null ? Ui.D(6) : Ui.D(12)));
+        {
+            int dh = Math.Min(Ui.D(34), TextRenderer.MeasureText(desc, Theme.UiSmall, new Size(labelW, 1000), TextFormatFlags.WordBreak).Height + Ui.D(2));
+            body.Controls.Add(new Label { Text = desc, Location = new Point(Pad, y + Ui.D(30)), Size = new Size(labelW, dh), ForeColor = Theme.Muted, BackColor = Theme.Panel, Font = Theme.UiSmall });
+            if (dh > Ui.D(20)) h += Ui.D(14);
+        }
+        control.Location = new Point(Pad + RowWidth - controlWidth, y + (desc == null ? Ui.D(7) : Ui.D(14)));
         body.Controls.Add(control);
         y += h;
     }
@@ -171,7 +344,7 @@ internal sealed class SettingsDialog : DarkDialog
     private void Choice(string title, string[] labels, string[] values, string current, Action<string> set)
     {
         int idx = Array.FindIndex(values, v => string.Equals(v, current ?? "", StringComparison.OrdinalIgnoreCase));
-        var box = new ChoiceBox(labels, idx >= 0 ? idx : 0) { Width = Ui.D(240) };
+        var box = new ChoiceBox(labels, idx >= 0 ? idx : 0) { Width = Ui.D(250) };
         Row(title, null, box, box.Width);
         apply.Add(() => set(values[Math.Max(0, box.SelectedIndex)]));
     }
@@ -188,6 +361,61 @@ internal sealed class SettingsDialog : DarkDialog
         holder.Controls.AddRange(new Control[] { minus, label, plus });
         Row(title, null, holder, holder.Width);
         apply.Add(() => set(current));
+    }
+
+    private RoundInput Text2(string title, string value, string placeholder, Action<string> set, bool browse, bool password = false)
+    {
+        var input = new RoundInput(placeholder) { Size = Ui.D(browse ? 300 : 340, 30) };
+        input.Text = value ?? "";
+        if (password) input.Box.UseSystemPasswordChar = true;
+        Control control = input;
+        if (browse)
+        {
+            var holder = new Panel { Size = Ui.D(340, 30), BackColor = Theme.Panel };
+            var b = new PixelButton { Glyph = "folder", Kind = ButtonKind.Secondary, Bounds = new Rectangle(Ui.D(308), 0, Ui.D(32), Ui.D(30)), Radius = 7 };
+            b.Click += (_, _) =>
+            {
+                using (var dialog = new OpenFileDialog { Filter = "g++.exe|g++.exe|" + L.T("Programs", "程序") + "|*.exe" })
+                    if (dialog.ShowDialog(this) == DialogResult.OK) input.Text = dialog.FileName;
+            };
+            input.Location = Point.Empty;
+            holder.Controls.Add(input);
+            holder.Controls.Add(b);
+            control = holder;
+        }
+        Row(title, null, control, control.Width);
+        apply.Add(() => set(input.Text.Trim()));
+        return input;
+    }
+
+    private void TestRow(RoundInput url, RoundInput key, RoundInput model)
+    {
+        var button = new PixelButton { Glyph = "refresh", Text = L.T("Test connection", "测试连接"), Kind = ButtonKind.Secondary, Radius = 8, Height = Ui.D(30) };
+        button.Width = button.PreferredWidth();
+        int top = y;
+        Row(L.T("Check the settings", "检查设置"), L.T("Sends one tiny request to make sure the address, key and model work.", "发送一个很小的请求，确认地址、密钥和模型可用。"), button, button.Width);
+        var desc = body.Controls.OfType<Label>().LastOrDefault(l => l.Top == top + Ui.D(30));
+        button.Enabled = aiTest != null;
+        button.Click += async (_, _) =>
+        {
+            if (aiTest == null || button.Busy) return;
+            var probe = new AppSettings { AiFixEnabled = true, AiBaseUrl = url.Text.Trim(), AiKey = key.Text.Trim(), AiModel = model.Text.Trim() };
+            if (!AiFix.Configured(probe))
+            {
+                if (desc != null) { desc.Text = L.T("Fill in a valid address (https://...), an API key and a model first.", "请先填写有效的地址（https://...）、API Key 和模型。"); desc.ForeColor = Theme.Red; }
+                return;
+            }
+            button.Busy = true;
+            if (desc != null) { desc.Text = L.T("Contacting ", "正在连接 ") + AiFix.HostOf(probe.AiBaseUrl) + "…"; desc.ForeColor = Theme.Muted; }
+            string result = await aiTest(probe);
+            button.Busy = false;
+            if (desc != null && !desc.IsDisposed)
+            {
+                bool ok = result.StartsWith(L.T("Connected", "连接成功"), StringComparison.Ordinal);
+                desc.Text = result.Length > 90 ? result.Substring(0, 90) + "…" : result;
+                desc.ForeColor = ok ? Theme.Lime : Theme.Red;
+            }
+        };
     }
 
     private void UpdateRow(Func<System.Threading.Tasks.Task<string>> checkNow)
@@ -213,7 +441,7 @@ internal sealed class SettingsDialog : DarkDialog
     {
         var link = new LinkLabel
         {
-            Text = url.Replace("https://", ""), AutoSize = false, Size = new Size(Ui.D(330), Ui.D(24)), TextAlign = ContentAlignment.MiddleRight,
+            Text = url.Replace("https://", ""), AutoSize = false, Size = new Size(Ui.D(340), Ui.D(24)), TextAlign = ContentAlignment.MiddleRight,
             LinkColor = Theme.Orange, ActiveLinkColor = Theme.OrangeHot, VisitedLinkColor = Theme.Orange, BackColor = Theme.Panel,
             Font = Theme.Ui9, LinkBehavior = LinkBehavior.HoverUnderline, Cursor = Cursors.Hand,
         };
@@ -224,29 +452,6 @@ internal sealed class SettingsDialog : DarkDialog
         };
         new ToolTip().SetToolTip(link, url);
         Row(title, null, link, link.Width);
-    }
-
-    private void Text2(string title, string value, string placeholder, Action<string> set, bool browse)
-    {
-        var input = new RoundInput(placeholder) { Size = Ui.D(browse ? 290 : 330, 30) };
-        input.Text = value ?? "";
-        Control control = input;
-        if (browse)
-        {
-            var holder = new Panel { Size = Ui.D(330, 30), BackColor = Theme.Panel };
-            var b = new PixelButton { Glyph = "folder", Kind = ButtonKind.Secondary, Bounds = new Rectangle(Ui.D(298), 0, Ui.D(32), Ui.D(30)), Radius = 7 };
-            b.Click += (_, _) =>
-            {
-                using (var dialog = new OpenFileDialog { Filter = "g++.exe|g++.exe|" + L.T("Programs", "程序") + "|*.exe" })
-                    if (dialog.ShowDialog(this) == DialogResult.OK) input.Text = dialog.FileName;
-            };
-            input.Location = Point.Empty;
-            holder.Controls.Add(input);
-            holder.Controls.Add(b);
-            control = holder;
-        }
-        Row(title, null, control, control.Width);
-        apply.Add(() => set(input.Text.Trim()));
     }
 }
 
