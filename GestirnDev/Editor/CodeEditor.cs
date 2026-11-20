@@ -36,10 +36,14 @@ internal sealed class Diagnostic
     public int Col;       // 1-based column from the compiler, 0 when unknown
     public Severity Severity;
     public string Message, Hint;
-    public string Plain;   // the message in plain language (null when there is no translation)
+    public Diagnostic Copy() { return (Diagnostic)MemberwiseClone(); }
+    public string Plain;   // the message in plain language
+    public bool Approx;    // the plain wording comes from the phrase dictionary, not from a hand-written rule
+    public bool Cascade;   // probably a knock-on effect of an earlier error on the same line
+    public string SourceLine;
 
-    // What to show as the headline: the plain wording when simple translation is on.
-    public string Headline { get { return Hints.SimpleMode && !string.IsNullOrEmpty(Plain) ? Plain : Message; } }
+    // What to show as the headline: the plain wording unless error translation is off.
+    public string Headline { get { return Hints.Mode != Hints.TranslationMode.Off && !string.IsNullOrEmpty(Plain) ? Plain : Message; } }
 }
 
 // A self-drawn code editor: text model, undo, syntax colouring, IME, completion and markers.
@@ -286,7 +290,10 @@ internal sealed class CodeEditor : Control
         var moved = breakpoints.Select(map).Where(l => l >= 0 && l < lines.Count).ToList();
         breakpoints.Clear();
         foreach (var l in moved) breakpoints.Add(l);
-        foreach (var d in diagnostics) d.Line = map(d.Line);
+        // A replacement that swallows (nearly) the whole text — format, reload, undo of a big edit — leaves nothing to track:
+        // drop the underlines instead of piling them all onto line 0.
+        if (removedBreaks >= lines.Count - delta - 1 && removedBreaks > 0 && at.Line == 0 && at.Col == 0) diagnostics.Clear();
+        else foreach (var d in diagnostics) d.Line = map(d.Line);
         if (execLine >= 0) execLine = map(execLine);
         foreach (var k in bookmarks.Keys.ToList()) bookmarks[k] = Math.Max(0, Math.Min(lines.Count - 1, map(bookmarks[k])));
         UpdateGutter();
@@ -1148,10 +1155,12 @@ internal sealed class CodeEditor : Control
         }
     }
 
+    // The editor keeps its own copies: line numbers shift while you type, and that must never change the
+    // diagnostics the Problems panel (and the next translation) still holds.
     public void SetDiagnostics(IEnumerable<Diagnostic> list)
     {
         diagnostics.Clear();
-        diagnostics.AddRange(list);
+        diagnostics.AddRange(list.Select(d => d.Copy()));
         hoverDiag = null;
         Invalidate();
     }
@@ -2169,7 +2178,7 @@ internal sealed class CodeEditor : Control
     {
         var d = hoverDiag;
         string title = d.Severity == Severity.Error ? L.T("Error", "错误") : d.Severity == Severity.Warning ? L.T("Warning", "警告") : L.T("Note", "提示");
-        string body = d.Headline + (Hints.SimpleMode && !string.IsNullOrEmpty(d.Plain) ? "\n(" + d.Message + ")" : "") + (string.IsNullOrEmpty(d.Hint) ? "" : "\n\n" + d.Hint);
+        string body = d.Headline + (Hints.Mode != Hints.TranslationMode.Off && !string.IsNullOrEmpty(d.Plain) ? "\n(" + d.Message + ")" : "") + (Hints.Mode == Hints.TranslationMode.Detailed && !string.IsNullOrEmpty(d.Hint) ? "\n\n" + d.Hint : "");
         int maxW = Ui.D(460);
         var size = TextRenderer.MeasureText(g, body, Theme.Ui9, new Size(maxW - Ui.D(24), 2000), TextFormatFlags.WordBreak);
         int w = Math.Min(maxW, size.Width + Ui.D(24));

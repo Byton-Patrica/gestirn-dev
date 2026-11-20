@@ -7,16 +7,34 @@ namespace GestirnDev
 {
 // Turns GCC messages into plain language. Each rule gives two things: what went wrong, said simply
 // (shown instead of the raw message when "simple error translation" is on), and how to fix it.
-internal static class Hints
+internal static partial class Hints
 {
     private sealed class Rule
     {
         public Regex Re;
         public string PlainEn, PlainZh, FixEn, FixZh;
-        public Func<Match, string[]> Custom;   // {plainEn, plainZh, fixEn, fixZh} computed from the match
+        public string Sample;                          // a real message this rule must catch (checked by the self-test)
+        public Func<Match, Ctx, string[]> Custom;      // {plainEn, plainZh, fixEn, fixZh} computed from the match
     }
 
-    public sealed class Translation { public string Plain, Fix; }
+    // The source around the error, for rules that can say something more specific than the message.
+    public sealed class Ctx
+    {
+        public string Line, Prev;
+        public int Col;
+    }
+
+    public sealed class Translation { public string Plain, Fix; public bool Approx; }
+
+    public enum TranslationMode { Detailed, Simple, Off }
+
+    // Settings > Easy help > Error translation.
+    public static TranslationMode Mode = TranslationMode.Detailed;
+
+    public static TranslationMode ModeFrom(string s)
+    {
+        return s == "simple" ? TranslationMode.Simple : s == "off" ? TranslationMode.Off : TranslationMode.Detailed;
+    }
 
     private static readonly List<Rule> Rules = new List<Rule>();
 
@@ -54,13 +72,20 @@ internal static class Hints
         Rules.Add(new Rule { Re = new Regex(pattern, RegexOptions.Compiled), PlainEn = plainEn, PlainZh = plainZh, FixEn = fixEn, FixZh = fixZh });
     }
 
-    private static void C(string pattern, Func<Match, string[]> custom)
+    // The same, with a sample message that the self-test uses to prove the rule fires (and is not shadowed).
+    private static void R(string pattern, string sample, string plainEn, string plainZh, string fixEn, string fixZh)
     {
-        Rules.Add(new Rule { Re = new Regex(pattern, RegexOptions.Compiled), Custom = custom });
+        Rules.Add(new Rule { Re = new Regex(pattern, RegexOptions.Compiled), Sample = sample, PlainEn = plainEn, PlainZh = plainZh, FixEn = fixEn, FixZh = fixZh });
+    }
+
+    private static void C(string pattern, Func<Match, Ctx, string[]> custom, string sample = null)
+    {
+        Rules.Add(new Rule { Re = new Regex(pattern, RegexOptions.Compiled), Custom = custom, Sample = sample });
     }
 
     static Hints()
     {
+        AddBatches();   // the newer, more specific rules are tried first; the older general ones follow
         // ---------------------------------------------------------------- characters, punctuation, brackets
         R(@"^stray '\\\d{3}' in program|^stray '\\\d+'",
           "The code contains a character the compiler can't read, most likely a Chinese (full-width) symbol such as ； ， （ ） or a curly quote.",
@@ -179,7 +204,7 @@ internal static class Hints
           "单引号里只能放一个字符（'a'），文字要用双引号（\"abc\"）。");
 
         // ---------------------------------------------------------------- names and types
-        C(@"^'(\w+)' (?:was not declared in this scope|has not been declared|is not a member of 'std')|^'(\w+)' undeclared \(first use in this function\)", m =>
+        C(@"^'(\w+)' (?:was not declared in this scope|has not been declared|is not a member of 'std')|^'(\w+)' undeclared \(first use in this function\)", (m, ctx) =>
         {
             string name = m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value;
             if (name == "nullptr" || name == "constexpr" || name == "decltype" || name == "static_assert" || name == "override" || name == "final")
@@ -468,7 +493,7 @@ internal static class Hints
           "程序文件无法写入。",
           "Check that the folder exists and isn't read-only.",
           "检查文件夹是否存在、是否只读。");
-        C(@"^(.+?): No such file or directory", m =>
+        C(@"^(.+?): No such file or directory", (m, ctx) =>
         {
             string f = m.Groups[1].Value.Trim();
             string fixEn = "Check the file name and the folder it lives in; for your own headers use #include \"name.h\".";
@@ -607,29 +632,28 @@ internal static class Hints
         });
     }
 
-    public static Translation Translate(string message)
+    public static Translation Translate(string message, Ctx ctx = null)
     {
         string m = Normalize(message);
         foreach (var rule in Rules)
         {
             var match = rule.Re.Match(m);
             if (!match.Success) continue;
-            string[] t = rule.Custom != null ? rule.Custom(match)
+            string[] t = rule.Custom != null ? rule.Custom(match, ctx)
                 : new[] { Fill(rule.PlainEn, match), Fill(rule.PlainZh, match), Fill(rule.FixEn, match), Fill(rule.FixZh, match) };
             return new Translation { Plain = L.T(t[0], t[1]), Fix = t[2] == null ? null : L.T(t[2], t[3]) };
         }
-        return null;
+        return Phrases.Translate(m);
     }
 
-    // Switched by Settings > Learning aids > Simple error translation.
-    public static bool SimpleMode = true;
-
-    public static void Apply(Diagnostic d)
+    // Fills Plain / Hint on a diagnostic (every message gets a translation: rules first, the phrase dictionary after).
+    public static void Apply(Diagnostic d, Ctx ctx = null)
     {
-        var t = Translate(d.Message);
+        var t = Translate(d.Message, ctx);
         if (t == null) return;
         d.Plain = t.Plain;
         d.Hint = t.Fix;
+        d.Approx = t.Approx;
     }
 
     // Kept for callers that only want the fix suggestion.
@@ -639,7 +663,24 @@ internal static class Hints
         return t != null ? t.Fix : null;
     }
 
-    // How many rules exist (used by tests).
+    // Checks every rule that carries a sample: the first rule to match the sample must be that rule.
+    public static List<string> SelfTest()
+    {
+        var problems = new List<string>();
+        foreach (var rule in Rules)
+        {
+            if (rule.Sample == null) continue;
+            string m = Normalize(rule.Sample);
+            var first = Rules.FirstOrDefault(r => r.Re.IsMatch(m));
+            if (first == null) problems.Add("no rule matches its own sample: " + rule.Sample);
+            else if (first != rule) problems.Add("sample is caught by an earlier rule: " + rule.Sample + "  (by " + first.Re + ")");
+        }
+        return problems;
+    }
+
     public static int RuleCount { get { return Rules.Count; } }
+    public static int SampleCount { get { return Rules.Count(r => r.Sample != null); } }
+    // Rules plus the phrase dictionary: the size of the whole error dictionary.
+    public static int EntryCount { get { return Rules.Count + Phrases.Count; } }
 }
 }

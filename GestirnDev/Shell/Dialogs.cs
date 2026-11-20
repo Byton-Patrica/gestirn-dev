@@ -219,9 +219,10 @@ internal sealed class SettingsDialog : DarkDialog
         // ---- Easy help: error translation, reward mode and the experimental AI fix
         Page("assist", "spark", L.T("Easy help", "简易辅助"), L.T("Friendly help for beginners.", "给初学者的贴心帮助。"));
         Section(L.T("Error messages", "编译报错"));
-        Toggle(L.T("Simple error translation", "编译简洁翻译"),
-            L.T("Explains compiler errors in plain words, with a tip on how to fix them. Great for beginners.", "把编译报错翻译成通俗易懂的说法，并告诉你怎么改，适合初学者。"),
-            settings.SimpleErrors, v => settings.SimpleErrors = v);
+        Choice(L.T("Error translation", "报错翻译"),
+            new[] { L.T("Detailed translation", "详细翻译"), L.T("Simple translation", "简洁翻译"), L.T("Off (compiler text)", "关闭（显示原文）") },
+            new[] { "detailed", "simple", "off" }, settings.ErrorTranslation, v => settings.ErrorTranslation = v);
+        Note(L.T("Every compiler message gets a Chinese reading. Detailed adds a tip on how to fix it; Simple keeps it to one sentence.", "每一条编译器报错都会有中文解读。详细翻译会再给出修改建议，简洁翻译只给一句话。"));
         Section(L.T("Encouragement", "鼓励"));
         Toggle(L.T("Reward mode", "奖励模式"),
             L.T("An encouraging line each time you run your code, and a bigger cheer when it finally works after errors.", "每次运行代码都会鼓励你一句；出错后终于成功时，会有更热烈的夸奖。"),

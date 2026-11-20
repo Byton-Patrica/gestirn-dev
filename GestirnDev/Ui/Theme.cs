@@ -245,6 +245,20 @@ internal static class Shapes
         g.SmoothingMode = mode;
     }
 
+    // A rounded rectangle where only the chosen sides are rounded (two of these make a split button).
+    public static GraphicsPath RoundSides(RectangleF r, float radius, bool left, bool right)
+    {
+        var path = new GraphicsPath();
+        float d = Math.Min(radius, Math.Min(r.Width, r.Height) / 2f) * 2f;
+        if (d <= 0.5f || (!left && !right)) { path.AddRectangle(r); return path; }
+        if (left) path.AddArc(r.X, r.Y, d, d, 180, 90); else path.AddLine(r.X, r.Y, r.X, r.Y);
+        if (right) path.AddArc(r.Right - d, r.Y, d, d, 270, 90); else path.AddLine(r.Right, r.Y, r.Right, r.Y);
+        if (right) path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90); else path.AddLine(r.Right, r.Bottom, r.Right, r.Bottom);
+        if (left) path.AddArc(r.X, r.Bottom - d, d, d, 90, 90); else path.AddLine(r.X, r.Bottom, r.X, r.Bottom);
+        path.CloseFigure();
+        return path;
+    }
+
     // Draws an image clipped to a rounded rectangle (the 70s icon is a plain square).
     public static void DrawRounded(Graphics g, Image image, Rectangle r, float radius)
     {
@@ -343,6 +357,7 @@ internal static class Glyphs
         { "replaceall", new[] { "##.##", ".#..#", "##.##", "#..#.", "##.##" } },
         { "regex", new[] { "#.#.#", ".###.", "#.#.#", ".....", "#...." } },
         { "help", new[] { ".###.", "#...#", "...#.", "..#..", "..#.." } },
+        { "bolt", new[] { "....##.", "...##..", "..##...", ".#####.", "...##..", "..##...", ".##...." } },
         { "profile", new[] { "......#", "......#", "....#.#", "....#.#", "..#.#.#", "..#.#.#", "#.#.#.#" } },
         { "update", new[] { "...#...", "...#...", ".#.#.#.", "..###..", "...#...", "#.....#", "#######" } },
         { "spark", new[] { "...#...", "...#...", "..###..", "#######", "..###..", "...#...", "...#..." } },

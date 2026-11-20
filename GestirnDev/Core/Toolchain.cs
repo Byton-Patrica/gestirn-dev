@@ -28,7 +28,7 @@ internal sealed class BuildOptions
 internal sealed class BuildOutcome
 {
     public bool Success, UpToDate;
-    public string ExePath;
+    public string ExePath, TempDir;
     public readonly StringBuilder Log = new StringBuilder();
     public readonly List<Diagnostic> Diagnostics = new List<Diagnostic>();
     public TimeSpan Elapsed;
@@ -163,11 +163,21 @@ internal static class Toolchain
 
     private static bool IsC(string path) { return string.Equals(Path.GetExtension(path), ".c", StringComparison.OrdinalIgnoreCase); }
 
-    private static string CompileFlags(string source, BuildOptions o)
+    // For text that only exists in the editor: UTF-8 in, GBK out on Chinese Windows.
+    public static string CharsetFlagsForText(string text, string mode)
+    {
+        if (mode == "utf8") return "";
+        bool gbkConsole = CultureInfo.CurrentCulture.TextInfo.ANSICodePage == 936;
+        bool nonAscii = (text ?? "").Any(c => c >= 0x80);
+        if ((mode == "gbk" || (mode == "auto" && gbkConsole)) && nonAscii) return "-finput-charset=UTF-8 -fexec-charset=GBK ";
+        return "";
+    }
+
+    private static string CompileFlags(string source, BuildOptions o, string text = null)
     {
         var sb = new StringBuilder();
         sb.Append(IsC(source) ? "-std=c11 " : "-std=" + o.Standard + " ");
-        sb.Append(CharsetFlags(source, o.ExecCharset));
+        sb.Append(text != null ? CharsetFlagsForText(text, o.ExecCharset) : CharsetFlags(source, o.ExecCharset));
         if (o.Debug) sb.Append("-g -O0 ");
         else if (!string.IsNullOrEmpty(o.Optimization)) sb.Append(o.Optimization).Append(' ');
         if (o.Profile) sb.Append("-pg -fno-omit-frame-pointer -fno-inline-functions-called-once ");
@@ -187,11 +197,11 @@ internal static class Toolchain
 
     public sealed class ToolResult { public int ExitCode; public string Output; }
 
-    public static async Task<ToolResult> RunTool(string exe, string args, string cwd, Action<Process> started)
+    public static async Task<ToolResult> RunTool(string exe, string args, string cwd, Action<Process> started, string stdin = null)
     {
         var psi = new ProcessStartInfo(exe, args)
         {
-            UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true,
+            UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = stdin != null,
             WorkingDirectory = cwd, StandardOutputEncoding = ConsoleEncoding, StandardErrorEncoding = ConsoleEncoding,
         };
         psi.EnvironmentVariables["PATH"] = Path.GetDirectoryName(exe) + ";" + Environment.GetEnvironmentVariable("PATH");
@@ -204,6 +214,16 @@ internal static class Toolchain
             if (started != null) started(p);
             var o = p.StandardOutput.ReadToEndAsync();
             var e = p.StandardError.ReadToEndAsync();
+            if (stdin != null)
+            {
+                try
+                {
+                    byte[] bytes = new UTF8Encoding(false).GetBytes(stdin);
+                    p.StandardInput.BaseStream.Write(bytes, 0, bytes.Length);
+                    p.StandardInput.Close();
+                }
+                catch (IOException) { }
+            }
             await Task.Run(() => p.WaitForExit());
             return new ToolResult { ExitCode = p.ExitCode, Output = (await o) + (await e) };
         }
@@ -260,6 +280,57 @@ internal static class Toolchain
             outcome.Diagnostics.Add(new Diagnostic { File = exe, Line = -1, Severity = Severity.Error, Message = L.T("No permission to write ", "没有权限写入 ") + exe });
             return false;
         }
+    }
+
+    // "Trial run": compiles the text that is in the editor (saved or not) straight from stdin into a temporary
+    // exe. A "#line" directive makes errors point at the real file, and the file on disk is never touched.
+    public static async Task<BuildOutcome> BuildTrial(string originalPath, string text, string workDir, BuildOptions o, Action<Process> started)
+    {
+        var watch = Stopwatch.StartNew();
+        var outcome = new BuildOutcome();
+        string name = string.IsNullOrEmpty(originalPath) ? Path.Combine(workDir, "untitled.cpp") : originalPath;
+        string temp = Path.Combine(Path.GetTempPath(), "GestirnTrial", Guid.NewGuid().ToString("N").Substring(0, 10));
+        Directory.CreateDirectory(temp);
+        string exe = Path.Combine(temp, "trial.exe");
+        outcome.ExePath = exe;
+        outcome.TempDir = temp;
+        string args = "-x " + (IsC(name) ? "c" : "c++") + " " + CompileFlags(name, o, text) + "-I " + Quote(workDir) + " - -o " + Quote(exe) + (o.StaticLink ? " -static" : "");
+        string source = "#line 1 \"" + name.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"\n" + text;
+        outcome.Log.AppendLine(Path.GetFileName(CompilerFor(name, o.Compiler)) + " " + args);
+        var r = await RunTool(CompilerFor(name, o.Compiler), args, workDir, started, source);
+        outcome.Log.Append(r.Output);
+        string key = Path.GetFullPath(name);
+        lock (TextOverrides) TextOverrides[key] = text;
+        try { outcome.Diagnostics.AddRange(ParseDiagnostics(r.Output, workDir)); }
+        finally { lock (TextOverrides) TextOverrides.Remove(key); }
+        outcome.Success = r.ExitCode == 0 && File.Exists(exe);
+        outcome.Elapsed = watch.Elapsed;
+        return outcome;
+    }
+
+    public static void DeleteTrialDir(string dir)
+    {
+        if (string.IsNullOrEmpty(dir) || !dir.Contains("GestirnTrial")) return;
+        for (int i = 0; i < 5; i++)
+        {
+            try { if (Directory.Exists(dir)) Directory.Delete(dir, true); return; }
+            catch (IOException) { Thread.Sleep(200); }
+            catch (UnauthorizedAccessException) { Thread.Sleep(200); }
+        }
+    }
+
+    // Removes leftovers of earlier sessions (a crash or a killed program can leave a folder behind).
+    public static void CleanTrialTemp()
+    {
+        try
+        {
+            string root = Path.Combine(Path.GetTempPath(), "GestirnTrial");
+            if (!Directory.Exists(root)) return;
+            foreach (var d in Directory.GetDirectories(root))
+                if (DateTime.UtcNow - Directory.GetCreationTimeUtc(d) > TimeSpan.FromHours(6)) DeleteTrialDir(d);
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
     // Builds a Dev-C++ project: units compile in parallel, unchanged objects are reused, then link.
@@ -401,7 +472,7 @@ internal static class Toolchain
 
     // Runs the program in its own console through GestirnRun.exe, which prints the exit code and
     // elapsed time and waits for a key (like Dev-C++'s console pauser).
-    public static Process RunProgram(string exe, string args, string workingDir)
+    public static Process RunProgram(string exe, string args, string workingDir, string note = null)
     {
         string runner = Path.Combine(AppDir, "GestirnRun.exe");
         ProcessStartInfo psi;
@@ -411,6 +482,7 @@ internal static class Toolchain
             psi = new ProcessStartInfo("cmd.exe", "/c \"" + Quote(exe) + " " + (args ?? "") + " & echo. & pause\"");
         psi.UseShellExecute = false;
         psi.WorkingDirectory = string.IsNullOrEmpty(workingDir) ? Path.GetDirectoryName(exe) : workingDir;
+        if (!string.IsNullOrEmpty(note)) psi.EnvironmentVariables["GESTIRN_NOTE"] = note;
         return Process.Start(psi);
     }
 
@@ -419,8 +491,13 @@ internal static class Toolchain
     private static readonly Regex DiagLine = new Regex(
         @"^(?<file>[^:\r\n]+(?::[\\/][^:\r\n]*)?):(?<line>\d+):(?:(?<col>\d+):)?\s*(?<kind>fatal error|error|warning|note):\s*(?<msg>.*)$",
         RegexOptions.Compiled);
-    private static readonly Regex LinkLine = new Regex(@"^(?<file>[^:\r\n]+(?::[\\/][^:\r\n]*)?):\(\.\w+[^)]*\):\s*(?<msg>.*)$", RegexOptions.Compiled);
-    private static readonly Regex Generic = new Regex(@"^(?<tool>collect2(?:\.exe)?|ld(?:\.exe)?|g\+\+(?:\.exe)?|gcc(?:\.exe)?|cc1plus(?:\.exe)?):\s*(?:fatal )?error:\s*(?<msg>.*)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    // Linker messages: "C:\Temp\cc1.o:main.cpp:(.text+0x13): undefined reference to `f(int)'" (the object file name carries a colon).
+    private static readonly Regex LinkLine = new Regex(@"^(?<pre>.+?):\((?<sect>\.[^)]*)\):\s*(?<msg>.+)$", RegexOptions.Compiled);
+    // With debug information the linker gives a line number: "main.cpp:12: undefined reference to `f(int)'".
+    private static readonly Regex LinkLineNo = new Regex(@"^(?<file>[^:\r\n]+(?::[\\/][^:\r\n]*)?):(?<line>\d+):\s*(?<msg>(?:undefined reference|multiple definition|relocation truncated).*)$", RegexOptions.Compiled);
+    // "ld.exe: cannot find -lfoo", "g++.exe: error: x.cpp: No such file or directory", "cc1plus.exe: warning: ..."
+    private static readonly Regex Generic = new Regex(@"^(?:.*[\\/])?(?<tool>collect2|ld|g\+\+|gcc|cc1plus|cc1|windres|ar|as|dlltool|cpp)(?:\.exe)?:\s*(?:(?<kind>fatal error|error|warning):\s*)?(?<msg>.+)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex StrayByte = new Regex(@"^stray '\\\d+' in program", RegexOptions.Compiled);
 
     public static List<Diagnostic> ParseDiagnostics(string output, string baseDir)
     {
@@ -431,35 +508,131 @@ internal static class Toolchain
             if (m.Success)
             {
                 string kind = m.Groups["kind"].Value;
-                var d = new Diagnostic
+                list.Add(new Diagnostic
                 {
                     File = Resolve(m.Groups["file"].Value, baseDir),
                     Line = int.Parse(m.Groups["line"].Value) - 1,
                     Col = m.Groups["col"].Success ? int.Parse(m.Groups["col"].Value) : 0,
                     Severity = kind == "warning" ? Severity.Warning : kind == "note" ? Severity.Note : Severity.Error,
                     Message = m.Groups["msg"].Value.Trim(),
-                };
-                Hints.Apply(d);
-                list.Add(d);
+                });
+                continue;
+            }
+            m = LinkLineNo.Match(raw);
+            if (m.Success)
+            {
+                list.Add(new Diagnostic { File = Resolve(m.Groups["file"].Value, baseDir), Line = int.Parse(m.Groups["line"].Value) - 1, Severity = Severity.Error, Message = m.Groups["msg"].Value.Trim() });
                 continue;
             }
             m = LinkLine.Match(raw);
             if (m.Success)
             {
-                var d = new Diagnostic { File = Resolve(m.Groups["file"].Value, baseDir), Line = -1, Severity = Severity.Error, Message = m.Groups["msg"].Value.Trim() };
-                Hints.Apply(d);
-                list.Add(d);
+                string msg = m.Groups["msg"].Value.Trim();
+                string pre = m.Groups["pre"].Value;
+                string file = null;
+                int colon = pre.LastIndexOf(':');
+                if (colon > 1)
+                {
+                    string cand = pre.Substring(colon + 1);
+                    if (cand.Length > 0 && !cand.EndsWith(".o", StringComparison.OrdinalIgnoreCase) && !cand.EndsWith(".obj", StringComparison.OrdinalIgnoreCase)) file = Resolve(cand, baseDir);
+                }
+                bool isNote = msg.StartsWith("first defined here", StringComparison.OrdinalIgnoreCase) || msg.StartsWith("in function", StringComparison.OrdinalIgnoreCase);
+                list.Add(new Diagnostic { File = file, Line = -1, Severity = isNote ? Severity.Note : Severity.Error, Message = msg });
                 continue;
             }
             m = Generic.Match(raw);
-            if (m.Success && !raw.Contains("ld returned 1 exit status"))
+            if (m.Success)
             {
-                var d = new Diagnostic { Line = -1, Severity = Severity.Error, Message = m.Groups["msg"].Value.Trim() };
-                Hints.Apply(d);
-                list.Add(d);
+                string msg = m.Groups["msg"].Value.Trim();
+                if (msg.Contains("ld returned") && msg.Contains("exit status")) continue;
+                string kind = m.Groups["kind"].Value.ToLowerInvariant();
+                // "ld.exe: warning: ..." and friends keep their own severity; a bare "ld.exe: cannot find ..." is an error
+                if (m.Groups["tool"].Value.Equals("ld", StringComparison.OrdinalIgnoreCase) && kind.Length == 0 && msg.StartsWith("warning:", StringComparison.OrdinalIgnoreCase)) { kind = "warning"; msg = msg.Substring(8).Trim(); }
+                if (msg.EndsWith(":") || msg.StartsWith("In function", StringComparison.Ordinal)) continue;
+                list.Add(new Diagnostic { Line = -1, Severity = kind == "warning" ? Severity.Warning : Severity.Error, Message = msg });
             }
         }
-        return list;
+        return Finish(list);
+    }
+
+    // The text of a source line and the one before it, for translating errors with the code around them.
+    // Unsaved text (a trial run) is registered in TextOverrides; everything else is read from disk.
+    public static readonly Dictionary<string, string> TextOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, KeyValuePair<DateTime, string[]>> lineCache = new Dictionary<string, KeyValuePair<DateTime, string[]>>(StringComparer.OrdinalIgnoreCase);
+
+    public static string[] SourceLines(string file, int line)
+    {
+        string[] all;
+        lock (TextOverrides)
+        {
+            string over;
+            if (TextOverrides.TryGetValue(file, out over)) all = over.Replace("\r", "").Split('\n');
+            else
+            {
+                if (!File.Exists(file)) return null;
+                DateTime t = File.GetLastWriteTimeUtc(file);
+                KeyValuePair<DateTime, string[]> cached;
+                if (lineCache.TryGetValue(file, out cached) && cached.Key == t) all = cached.Value;
+                else
+                {
+                    byte[] bytes = File.ReadAllBytes(file);
+                    string text;
+                    try { text = new UTF8Encoding(false, true).GetString(bytes); }
+                    catch (DecoderFallbackException) { text = ConsoleEncoding.GetString(bytes); }
+                    all = text.Replace("\r", "").Split('\n');
+                    if (lineCache.Count > 64) lineCache.Clear();
+                    lineCache[file] = new KeyValuePair<DateTime, string[]>(t, all);
+                }
+            }
+        }
+        if (line < 0 || line >= all.Length) return null;
+        return line > 0 ? new[] { all[line], all[line - 1] } : new[] { all[line] };
+    }
+
+    // Removes duplicates, folds the several "stray" errors a single Chinese character produces into one, marks the
+    // errors that are probably knock-on effects, then translates everything with the code around it.
+    private static List<Diagnostic> Finish(List<Diagnostic> list)
+    {
+        var result = new List<Diagnostic>();
+        var seen = new HashSet<string>();
+        var strayLines = new HashSet<string>();
+        foreach (var d in list)
+        {
+            string key = d.File + "|" + d.Line + "|" + d.Col + "|" + d.Severity + "|" + d.Message;
+            if (!seen.Add(key)) continue;
+            if (d.Severity == Severity.Error && d.Line >= 0 && StrayByte.IsMatch(d.Message))
+            {
+                if (!strayLines.Add(d.File + "|" + d.Line)) continue;   // the second and third byte of the same character
+            }
+            result.Add(d);
+        }
+        // knock-on errors: anything else reported on a line that already has a stray character, or the line after a syntax error
+        var rootLines = new Dictionary<string, int>();
+        foreach (var d in result.Where(x => x.Severity == Severity.Error && x.Line >= 0))
+        {
+            string at = d.File + "|" + d.Line;
+            bool isRoot = StrayByte.IsMatch(d.Message);
+            if (isRoot) rootLines[at] = d.Line;
+            else if (rootLines.ContainsKey(at)) d.Cascade = true;
+        }
+        foreach (var d in result)
+        {
+            Hints.Ctx ctx = null;
+            if (d.Line >= 0 && d.File != null && SourceLines != null)
+            {
+                string[] lines = null;
+                try { lines = SourceLines(d.File, d.Line); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                if (lines != null && lines.Length > 0)
+                {
+                    ctx = new Hints.Ctx { Line = lines[0], Prev = lines.Length > 1 ? lines[1] : null, Col = d.Col };
+                    d.SourceLine = lines[0];
+                }
+            }
+            Hints.Apply(d, ctx);
+            if (d.Cascade && d.Plain != null)
+                d.Plain = L.T("(Probably caused by the error above) ", "（多半是上面那个错误连带出来的）") + d.Plain;
+        }
+        return result;
     }
 
     private static string Resolve(string file, string baseDir)

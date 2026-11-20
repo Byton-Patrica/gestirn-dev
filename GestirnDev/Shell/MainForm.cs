@@ -12,7 +12,7 @@ namespace GestirnDev
 {
 internal sealed partial class MainForm : Form
 {
-    public const string Version = "0.6";
+    public const string Version = "0.61";
     public static MainForm Instance;
 
     private readonly AppSettings settings;
@@ -30,7 +30,7 @@ internal sealed partial class MainForm : Form
     private readonly CommandPill pill = new CommandPill();
     private readonly List<PixelButton> actions = new List<PixelButton>();
     private readonly List<PixelButton> debugActions = new List<PixelButton>();
-    private PixelButton runBtn, buildBtn, debugBtn, stopBtn;
+    private PixelButton runBtn, trialBtn, buildBtn, debugBtn, stopBtn;
     private readonly ToolTip tips = new ToolTip();
     private readonly ActivityRail rail = new ActivityRail();
     private readonly Card sidebar = new Card { Fill = Theme.Panel, Radius = 12, Outline = Theme.Frame };
@@ -78,6 +78,7 @@ internal sealed partial class MainForm : Form
         Opacity = 0;
         DoubleBuffered = true;
         logoImage = LoadLogo();
+        Toolchain.CleanTrialTemp();
 
         RestoreBounds2();
         BuildChrome();
@@ -93,7 +94,7 @@ internal sealed partial class MainForm : Form
         completion.OtherDocumentWords = () => docs.Where(d => d != active).SelectMany(d => d.Editor.Words()).Distinct().Take(4000);
 
         autosaveTimer.Interval = Math.Max(300, settings.AutoSaveDelay);
-        autosaveTimer.Tick += (_, _) => { autosaveTimer.Stop(); SaveAllQuiet(); };
+        autosaveTimer.Tick += (_, _) => { autosaveTimer.Stop(); if (settings.AutoSave) SaveAllQuiet(); };   // a pending save is dropped if Auto save was turned off meanwhile
         outlineTimer.Tick += (_, _) => { outlineTimer.Stop(); RefreshOutline(); };
         backupTimer.Tick += (_, _) => BackupUntitled();
         backupTimer.Start();
@@ -170,7 +171,11 @@ internal sealed partial class MainForm : Form
         runBtn = TopButton("run", L.T("Run", "运行"), L.T("Compile & Run (F11)", "编译并运行 (F11)"), ButtonKind.Primary, () => Compile(true, false, false));
         debugBtn = TopButton("debug", null, L.T("Debug (F5)", "调试 (F5)"), ButtonKind.Ghost, DebugStartOrContinue);
         stopBtn = TopButton("stop", null, L.T("Stop (F6)", "停止 (F6)"), ButtonKind.Ghost, () => StopAll());
-        actions.AddRange(new[] { buildBtn, runBtn, debugBtn, stopBtn });
+        // Run is split in two halves: the normal run (saves first) and the trial run (runs the unsaved code).
+        runBtn.Sides = ButtonSides.Left;
+        trialBtn = TopButton("bolt", L.T("Trial", "试运行"), L.T("Trial run: runs the code as it is in the editor, without saving (Shift+F11)", "试运行：直接运行编辑器里的代码，不保存文件 (Shift+F11)"), ButtonKind.Tint, TrialRun);
+        trialBtn.Sides = ButtonSides.Right;
+        actions.AddRange(new[] { buildBtn, runBtn, trialBtn, debugBtn, stopBtn });
         var cont = TopButton("continue", null, L.T("Continue (F5)", "继续 (F5)"), ButtonKind.Ghost, () => DebugStep("continue"));
         var over = TopButton("stepover", null, L.T("Step over (F7)", "单步跳过 (F7)"), ButtonKind.Ghost, () => DebugStep("over"));
         var into = TopButton("stepinto", null, L.T("Step into (F8)", "单步进入 (F8)"), ButtonKind.Ghost, () => DebugStep("into"));
@@ -351,7 +356,7 @@ internal sealed partial class MainForm : Form
         {
             x -= b.Width;
             b.Location = new Point(x, (h - b.Height) / 2);
-            x -= Ui.D(6);
+            x -= b == trialBtn ? 0 : Ui.D(6);   // the two halves of the run button touch
         }
         x -= Ui.D(4);
         foreach (var b in debugActions.AsEnumerable().Reverse())

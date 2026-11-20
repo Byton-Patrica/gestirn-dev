@@ -124,7 +124,8 @@ internal class Card : Panel
     }
 }
 
-internal enum ButtonKind { Secondary, Primary, Ghost, Danger }
+internal enum ButtonKind { Secondary, Primary, Ghost, Danger, Tint }
+internal enum ButtonSides { All, Left, Right }
 
 // Rounded button with a pixel glyph. Hover and press glide instead of snapping.
 internal sealed class PixelButton : Control
@@ -153,6 +154,7 @@ internal sealed class PixelButton : Control
     public string Glyph { get; set; }
     public ButtonKind Kind { get; set; }
     public float Radius { get; set; }
+    public ButtonSides Sides { get; set; }
     public bool Active { get; set; }
     public string Tip { get; set; }
 
@@ -175,6 +177,11 @@ internal sealed class PixelButton : Control
         int gap = glyph > 0 && text > 0 ? Ui.D(8) : 0;
         if (text == 0) return Math.Max(Height, glyph + Ui.D(16));
         return glyph + gap + text + Ui.D(24);
+    }
+
+    private GraphicsPath BodyPath(RectangleF rect)
+    {
+        return Sides == ButtonSides.All ? Shapes.Round(rect, Ui.D(Radius)) : Shapes.RoundSides(rect, Ui.D(Radius), Sides == ButtonSides.Left, Sides == ButtonSides.Right);
     }
 
     protected override void OnMouseEnter(EventArgs e) { hover.To(1f, 120); base.OnMouseEnter(e); }
@@ -221,6 +228,13 @@ internal sealed class PixelButton : Control
                 edge = Theme.IsLight ? Theme.Outline : Color.Transparent;
                 ink = glyphColor = Theme.Ink;
                 break;
+            case ButtonKind.Tint:
+                // the "trial" half of the run button: a pale wash of the brand colour
+                fill = Ui.Lerp(Ui.Lerp(Theme.Panel, Theme.Orange, Theme.IsLight ? 0.12f : 0.18f), Ui.Lerp(Theme.Panel, Theme.Orange, Theme.IsLight ? 0.26f : 0.32f), h);
+                edge = Theme.IsLight ? Theme.Outline : Ui.Alpha(Theme.Orange, 200);
+                ink = Theme.Text;
+                glyphColor = Ui.Lerp(Theme.Orange, Theme.OrangeHot, h);
+                break;
             case ButtonKind.Danger:
                 fill = Ui.Lerp(Theme.Raised, Ui.Alpha(Theme.Red, 70), h);
                 edge = Ui.Lerp(Theme.Edge, Theme.Red, h);
@@ -243,13 +257,21 @@ internal sealed class PixelButton : Control
 
         float inset = p * Ui.Scale * 1.2f;
         var rect = new RectangleF(inset, inset, Width - inset * 2, Height - inset * 2);
-        Shapes.FillRound(g, fill, rect, Ui.D(Radius));
-        if (edge.A > 0) Shapes.StrokeRound(g, edge, rect, Ui.D(Radius), Math.Max(1f, Ui.Scale * 0.75f));
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        using (var body = BodyPath(rect))
+        using (var brush = new SolidBrush(fill))
+            g.FillPath(brush, body);
+        if (edge.A > 0)
+        {
+            float sw = Math.Max(1f, Ui.Scale * 0.75f);
+            using (var body = BodyPath(new RectangleF(rect.X + sw / 2, rect.Y + sw / 2, rect.Width - sw, rect.Height - sw)))
+            using (var pen = new Pen(edge, sw)) g.DrawPath(pen, body);
+        }
         if (ripple.Value < 1f && Enabled)
         {
             float r = ripple.Value * Math.Max(Width, Height) * 1.4f;
             var state = g.Save();
-            using (var clip = Shapes.Round(rect, Ui.D(Radius))) g.SetClip(clip);
+            using (var clip = BodyPath(rect)) g.SetClip(clip);
             g.SmoothingMode = SmoothingMode.AntiAlias;
             var rc = Kind == ButtonKind.Primary ? Theme.Ink : Theme.Orange;
             using (var b = new SolidBrush(Ui.Alpha(rc, (int)(90 * (1f - ripple.Value))))) g.FillEllipse(b, rippleAt.X - r, rippleAt.Y - r, r * 2, r * 2);
@@ -266,7 +288,7 @@ internal sealed class PixelButton : Control
             float band = Math.Max(Ui.D(26), Width * 0.35f);
             float sx = -band + sweep * (Width + band * 2);
             var state = g.Save();
-            using (var clip = Shapes.Round(rect, Ui.D(Radius))) g.SetClip(clip);
+            using (var clip = BodyPath(rect)) g.SetClip(clip);
             using (var lg = new LinearGradientBrush(new RectangleF(sx - band / 2, 0, band, Height), Color.White, Color.White, 15f))
             {
                 var tint = Kind == ButtonKind.Primary ? Color.White : Theme.Orange;

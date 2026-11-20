@@ -98,8 +98,9 @@ internal sealed class AppSettings
     public bool TerminalInSidebar;
     public string ProgramArgs = "";
     public bool CheckUpdates = true;
+    public bool TrialNoticeHidden;           // "don't show again" on the trial-run advice
     public bool RewardMode;                  // encouraging lines after each run
-    public bool SimpleErrors = true;         // compiler errors in plain language
+    public string ErrorTranslation = "detailed";   // detailed / simple / off
     public bool AiFixEnabled;                // experimental: AI fixes for compile errors
     public string AiBaseUrl = "https://api.openai.com/v1";
     public string AiModel = "gpt-4o-mini";
@@ -168,8 +169,10 @@ internal sealed class AppSettings
                     case "TerminalInSidebar": s.TerminalInSidebar = v == "1"; break;
                     case "ProgramArgs": s.ProgramArgs = v; break;
                     case "CheckUpdates": s.CheckUpdates = v != "0"; break;
+                    case "TrialNoticeHidden": s.TrialNoticeHidden = v == "1"; break;
                     case "RewardMode": s.RewardMode = v == "1"; break;
-                    case "SimpleErrors": s.SimpleErrors = v != "0"; break;
+                    case "SimpleErrors": if (v == "0") s.ErrorTranslation = "off"; break;   // older settings files
+                    case "ErrorTranslation": s.ErrorTranslation = v == "simple" || v == "off" ? v : "detailed"; break;
                     case "AiFixEnabled": s.AiFixEnabled = v == "1"; break;
                     case "AiBaseUrl": if (v.Length > 0) s.AiBaseUrl = v; break;
                     case "AiModel": if (v.Length > 0) s.AiModel = v; break;
@@ -232,7 +235,7 @@ internal sealed class AppSettings
             "Theme=" + Theme, "Animations=" + (Animations ? "1" : "0"), "TerminalShell=" + TerminalShell,
             "TerminalInSidebar=" + (TerminalInSidebar ? "1" : "0"), "ProgramArgs=" + ProgramArgs,
             "CheckUpdates=" + (CheckUpdates ? "1" : "0"), "SkippedVersion=" + SkippedVersion,
-            "RewardMode=" + (RewardMode ? "1" : "0"), "SimpleErrors=" + (SimpleErrors ? "1" : "0"),
+            "TrialNoticeHidden=" + (TrialNoticeHidden ? "1" : "0"), "RewardMode=" + (RewardMode ? "1" : "0"), "ErrorTranslation=" + ErrorTranslation,
             "AiFixEnabled=" + (AiFixEnabled ? "1" : "0"), "AiBaseUrl=" + AiBaseUrl, "AiModel=" + AiModel, "AiKey=" + Secret.Conceal(AiKey),
             "SettingsVersion=6",
             "Workspace=" + Workspace, "Project=" + Project,

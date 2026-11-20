@@ -21,6 +21,15 @@ internal static class GestirnRun
         try { Console.Title = Path.GetFileName(exe); }
         catch (IOException) { }
 
+        string note = Environment.GetEnvironmentVariable("GESTIRN_NOTE");
+        if (!string.IsNullOrEmpty(note))
+        {
+            Console.ForegroundColor = ConsoleColor.DarkYellow;
+            Console.WriteLine(note);
+            Console.ResetColor();
+            Console.WriteLine();
+        }
+
         int code;
         var watch = Stopwatch.StartNew();
         try

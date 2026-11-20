@@ -11,14 +11,41 @@ Dev-C++ does not need to be installed.
 
 ## Download
 
-**[Gestirn dev 0.6 for Windows (64-bit, includes compiler)](https://github.com/Byton-Patrica/gestirn-dev/releases/download/v0.6/Gestirn-dev-0.6-win64.zip)**
+**[Gestirn dev 0.61 for Windows (64-bit, includes compiler)](https://github.com/Byton-Patrica/gestirn-dev/releases/download/v0.61/Gestirn-dev-0.61-win64.zip)**
 — unzip anywhere and run `Gestirn-dev.exe`. Nothing else to install.
 
-- [Lite package without the compiler](https://github.com/Byton-Patrica/gestirn-dev/releases/download/v0.6/Gestirn-dev-0.6-lite.zip)
+- [Lite package without the compiler](https://github.com/Byton-Patrica/gestirn-dev/releases/download/v0.61/Gestirn-dev-0.61-lite.zip)
   (uses g++ from `PATH`, MSYS2 or an existing Dev-C++).
 - [All releases](https://github.com/Byton-Patrica/gestirn-dev/releases)
 
 The green "Code → Download ZIP" button on GitHub only gives the source code.
+
+## 0.61
+
+- **Trial run** (the second half of the Run button, Shift+F11): compiles and runs the code exactly
+  as it is in the editor, saved or not, and never writes your file. Errors point at the real file and
+  line, the temporary exe is cleaned up when the program ends, and `#include "x.h"` still finds the
+  headers next to your file. If Auto save is on, a notice recommends turning it off first (with a
+  "don't show again" switch). Runs one file at a time; for multi-file projects use Run.
+- **Error dictionary, 674 entries** (355 hand-written rules with a plain explanation and a fix tip,
+  plus 319 phrases): covers syntax, names and scope, types and conversions, function calls, classes,
+  templates and the standard library, the preprocessor, C, the linker and the compiler warnings.
+  Every rule carries a sample message and a self-test proves that the rule catches it, so a rule can't
+  be shadowed by an earlier one. A message that no rule knows is still read to you literally, in Chinese,
+  with a category in front; nothing is shown without a translation any more.
+- **All errors are listed**: linker errors (`undefined reference`, `cannot find -l...`) used to be
+  missing from the Problems list; they are shown now. The three errors one Chinese character causes are
+  folded into one, and errors that are only knock-on effects are marked.
+- **Smarter with the code in view**: it names the exact full-width symbol on the line ("`；` should be
+  `;`") and quotes the previous line when a semicolon is missing.
+- **Error translation**: Settings > Easy help has three modes: detailed (what is wrong + how to fix it),
+  simple (one plain sentence) and off (the compiler's own text).
+- **Fix: strange errors after many compiles.** The editor shifted the line numbers of the underlined
+  errors by modifying the same objects the Problems panel and the translations use, and a format or
+  reload piled them all onto line 0. The editor now keeps its own copies and drops the underlines when
+  the whole text is replaced. A pending auto save no longer fires after Auto save was turned off.
+- `tools/errcov` measures the dictionary against about 220 typical beginner mistakes compiled with
+  your own g++ and fails when fewer than 95% of the errors have a hand-written reading.
 
 ## 0.6
 
@@ -178,10 +205,12 @@ Source layout:
 | `GestirnDev/Shell` | Main window, panels, palette, dialogs |
 | `GestirnDev/Terminal` | ConPTY pseudo console and VT/xterm terminal emulator |
 | `GestirnRun` | Console runner |
+| `tools/errcov` | Measures the error dictionary against typical beginner mistakes |
 | `Source` | Original Delphi Dev-C++ IDE (needs Delphi 6/7) |
 
 ## Earlier versions
 
+- **0.6** — the 70s theme and icon, smarter errors, reward mode, AI fix.
 - **0.52** — performance analysis, update notifications, more animation.
 - **0.51** — standalone with bundled MinGW, ConPTY terminal for AI agents, light/dark themes.
 - **0.5** — new editor, debugger, projects, autosave and sessions.

@@ -162,6 +162,7 @@ internal sealed partial class MainForm
         var profileCmd = C("build.profile", "Profile (Performance Analysis)", "性能分析", Keys.Control | Keys.F11, () => Compile(true, false, false, true), "profile");
         var viewProfile = C("view.profile", "Profile Results", "性能分析结果", Keys.None, () => ShowPanel("profile"), "profile");
         var aiFix = C("build.aifix", "AI Fix Errors (experimental)", "AI 纠错（实验性）", Keys.None, AiFixNow, "spark");
+        var trial = C("build.trial", "Trial Run (unsaved code)", "试运行（不保存文件）", Keys.Shift | Keys.F11, TrialRun, "bolt");
         var syntax = C("build.syntax", "Syntax Check", "语法检查", Keys.Control | Keys.F9, SyntaxCheck, "check");
         var progArgs = C("build.args", "Program Arguments...", "程序运行参数...", Keys.None, SetProgramArguments, "term");
         var projNew = C("project.newFile", "New File in Project...", "在项目中新建文件...", Keys.None, NewFileInProject, "new");
@@ -206,7 +207,7 @@ internal sealed partial class MainForm
         menu.Items.Add(MenuOf("Insert", "插入", insDate, insHeader, insGuard, null, insMain, insClass));
         menu.Items.Add(MenuOf("View", "视图", commandPalette, quickOpen, null, viewExplorer, viewSearch, viewOutline, viewDebug, null, toggleSide, togglePanel, viewProblems, viewOutput, viewTerminal, viewProfile, null, themeCmd, animCmd, null, zoomIn, zoomOut, zoomReset));
         menu.Items.Add(MenuOf("Project", "项目", newProject, openProject, null, projNew, projAdd, projRemove, null, projOptions, closeFolder));
-        menu.Items.Add(MenuOf("Build", "编译", compile, run, compileRun, rebuild, syntax, stop, null, profileCmd, viewProfile, aiFix, null, progArgs, buildSettings));
+        menu.Items.Add(MenuOf("Build", "编译", compile, run, compileRun, trial, rebuild, syntax, stop, null, profileCmd, viewProfile, aiFix, null, progArgs, buildSettings));
         menu.Items.Add(MenuOf("Debug", "调试", debugStart, stepOver, stepInto, stepOut, debugStop, null, toggleBp, addWatch, clearBps));
         menu.Items.Add(MenuOf("Terminal", "终端", newTerm, viewTerminal, null, termSide, termPanel));
         menu.Items.Add(MenuOf("Tools", "工具", openSettings, format, openTerminal, null, openScratch, openData));
@@ -589,7 +590,7 @@ internal sealed partial class MainForm
         else Compile(true, false, false);
     }
 
-    private void Launch(string exe, bool cheer = true)
+    private void Launch(string exe, bool cheer = true, string workDir = null, string note = null, Action onExit = null)
     {
         if (!File.Exists(exe)) { toasts.Show(L.T("Nothing to run", "没有可运行的程序"), exe, ToastKind.Warning); return; }
         if (project != null && project.Type != DevProject.TypeConsole && project.Type != DevProject.TypeGui)
@@ -600,12 +601,16 @@ internal sealed partial class MainForm
         try
         {
             programs.RemoveAll(p => { try { return p.HasExited; } catch (InvalidOperationException) { return true; } });
-            var proc = Toolchain.RunProgram(exe, settings.ProgramArgs, Path.GetDirectoryName(exe));
+            var proc = Toolchain.RunProgram(exe, settings.ProgramArgs, workDir ?? Path.GetDirectoryName(exe), note);
             proc.EnableRaisingEvents = true;
-            proc.Exited += (_, _) => BeginInvoke(new Action(() => { status.Message = L.T("Program finished", "程序已结束"); status.Invalidate(); }));
+            proc.Exited += (_, _) =>
+            {
+                if (onExit != null) onExit();
+                if (!IsDisposed) BeginInvoke(new Action(() => { status.Message = L.T("Program finished", "程序已结束"); status.Invalidate(); }));
+            };
             programs.Add(proc);
             output.Append(L.T("Running ", "正在运行 ") + Path.GetFileName(exe) + L.T(" in its own console.", "（独立控制台窗口）"), Theme.TextDim);
-            status.Message = L.T("Running ", "运行中 ") + Path.GetFileName(exe);
+            status.Message = note != null ? L.T("Trial run (unsaved code)", "试运行中（未保存的代码）") : L.T("Running ", "运行中 ") + Path.GetFileName(exe);
             status.Invalidate();
             if (cheer) RewardOnRun();
         }
@@ -873,7 +878,7 @@ internal sealed partial class MainForm
         }
         autosaveTimer.Interval = Math.Max(300, settings.AutoSaveDelay);
         Animator.Reduced = !settings.Animations;
-        Hints.SimpleMode = settings.SimpleErrors;
+        Hints.Mode = Hints.ModeFrom(settings.ErrorTranslation);
         problems.Invalidate(true);
         RefreshAiButton(lastDiagnostics.Count(d => d.Severity == Severity.Error));
         ApplyTheme(ResolveLight(settings.Theme));
