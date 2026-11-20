@@ -30,7 +30,7 @@ $refs = 'System.dll', 'System.Core.dll', 'System.Drawing.dll', 'System.Windows.F
 
 & $csc -nologo -target:winexe -optimize+ "-win32icon:$root\GestirnDev\GestirnEra-70s.ico" "-out:$out\Gestirn-dev.exe" $refs "-recurse:$root\GestirnDev\*.cs"
 if ($LASTEXITCODE) { throw 'Gestirn-dev.exe build failed' }
-& $csc -nologo -target:exe -optimize+ "-out:$out\GestirnRun.exe" "-r:$fw\System.dll" "-r:$fw\System.Core.dll" "$root\GestirnRun\Program.cs"
+& $csc -nologo -target:exe -optimize+ "-win32icon:$root\GestirnDev\GestirnEra-70s.ico" "-out:$out\GestirnRun.exe" "-r:$fw\System.dll" "-r:$fw\System.Core.dll" "$root\GestirnRun\Program.cs"
 if ($LASTEXITCODE) { throw 'GestirnRun.exe build failed' }
 
 Copy-Item "$root\GestirnDev\GestirnEra-70s.ico", "$root\Assets\Branding\GestirnEra-70s-256.png", "$root\COPYING.txt" $out -Force

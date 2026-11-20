@@ -364,15 +364,42 @@ internal static class Glyphs
         int x0 = box.X + (box.Width - total) / 2;
         int y0 = box.Y + (box.Height - total) / 2;
         var mode = g.SmoothingMode;
-        g.SmoothingMode = SmoothingMode.None;
+        float radius = cell >= 3 ? cell * 0.34f : 0f;   // soft, rounded cells: no sharp corners anywhere
         using (var brush = new SolidBrush(color))
         {
-            for (int y = 0; y < n; y++)
-                for (int x = 0; x < rows[y].Length; x++)
-                    if (rows[y][x] == '#')
-                        g.FillRectangle(brush, x0 + x * (cell + gap), y0 + y * (cell + gap), cell, cell);
+            if (radius > 0f)
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                using (var path = new GraphicsPath())
+                {
+                    for (int y = 0; y < n; y++)
+                        for (int x = 0; x < rows[y].Length; x++)
+                            if (rows[y][x] == '#')
+                                AddRounded(path, x0 + x * (cell + gap), y0 + y * (cell + gap), cell, cell, radius);
+                    g.FillPath(brush, path);
+                }
+            }
+            else
+            {
+                g.SmoothingMode = SmoothingMode.None;
+                for (int y = 0; y < n; y++)
+                    for (int x = 0; x < rows[y].Length; x++)
+                        if (rows[y][x] == '#')
+                            g.FillRectangle(brush, x0 + x * (cell + gap), y0 + y * (cell + gap), cell, cell);
+            }
         }
         g.SmoothingMode = mode;
+    }
+
+    private static void AddRounded(GraphicsPath path, float x, float y, float w, float h, float r)
+    {
+        float d = r * 2f;
+        path.StartFigure();
+        path.AddArc(x, y, d, d, 180, 90);
+        path.AddArc(x + w - d, y, d, d, 270, 90);
+        path.AddArc(x + w - d, y + h - d, d, d, 0, 90);
+        path.AddArc(x, y + h - d, d, d, 90, 90);
+        path.CloseFigure();
     }
 
     // A 3x3 pixel spinner: one bright pixel chases around the ring, leaving a fading trail.
@@ -391,7 +418,12 @@ internal static class Glyphs
             int age = (lead - i + Ring.Length) % Ring.Length;
             Color c = age == 0 ? head : Ui.Alpha(tail, Math.Max(0, 200 - age * 42));
             using (var b = new SolidBrush(c))
-                g.FillRectangle(b, x0 + Ring[i].X * (cell + gap), y0 + Ring[i].Y * (cell + gap), cell, cell);
+            using (var path = new GraphicsPath())
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                AddRounded(path, x0 + Ring[i].X * (cell + gap), y0 + Ring[i].Y * (cell + gap), cell, cell, cell * 0.34f);
+                g.FillPath(b, path);
+            }
         }
         g.SmoothingMode = mode;
     }

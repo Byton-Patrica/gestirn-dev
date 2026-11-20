@@ -94,8 +94,8 @@ internal sealed partial class MainForm
         if (aiBusy) return;
         if (!AiFix.Configured(settings))
         {
-            toasts.Show(L.T("AI fix isn't set up", "AI 纠错还没有设置"), L.T("Turn it on and enter an API key in Settings > AI fix.", "请在 设置 > AI 纠错 中开启并填写 API Key。"), ToastKind.Info, 4000);
-            OpenSettings("ai");
+            toasts.Show(L.T("AI fix isn't set up", "AI 纠错还没有设置"), L.T("Turn it on and enter an API key in Settings > Easy help > AI fix.", "请在 设置 > 简易辅助 > AI 纠错 中开启并填写 API Key。"), ToastKind.Info, 4000);
+            OpenSettings("assist");
             return;
         }
         if (active == null || !active.IsSource)

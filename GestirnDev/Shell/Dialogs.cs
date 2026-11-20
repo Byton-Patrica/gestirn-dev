@@ -216,19 +216,20 @@ internal sealed class SettingsDialog : DarkDialog
         Choice(L.T("Program text encoding", "程序输出编码"), new[] { L.T("Auto (GBK on Chinese Windows)", "自动（中文系统用 GBK）"), "GBK", "UTF-8" },
             new[] { "auto", "gbk", "utf8" }, settings.ExecCharset, v => settings.ExecCharset = v);
 
-        // ---- Learning aids
-        Page("learn", "check", L.T("Learning aids", "学习辅助"), L.T("Friendly help for beginners.", "给初学者的贴心帮助。"));
+        // ---- Easy help: error translation, reward mode and the experimental AI fix
+        Page("assist", "spark", L.T("Easy help", "简易辅助"), L.T("Friendly help for beginners.", "给初学者的贴心帮助。"));
+        Section(L.T("Error messages", "编译报错"));
         Toggle(L.T("Simple error translation", "编译简洁翻译"),
             L.T("Explains compiler errors in plain words, with a tip on how to fix them. Great for beginners.", "把编译报错翻译成通俗易懂的说法，并告诉你怎么改，适合初学者。"),
             settings.SimpleErrors, v => settings.SimpleErrors = v);
+        Section(L.T("Encouragement", "鼓励"));
         Toggle(L.T("Reward mode", "奖励模式"),
             L.T("An encouraging line each time you run your code, and a bigger cheer when it finally works after errors.", "每次运行代码都会鼓励你一句；出错后终于成功时，会有更热烈的夸奖。"),
             settings.RewardMode, v => settings.RewardMode = v);
 
-        // ---- AI fix
-        Page("ai", "spark", L.T("AI fix", "AI 纠错"), L.T("Let an AI model suggest fixes when your code doesn't compile.", "代码编译不过时，让 AI 模型帮你找出问题并修改。"), L.T("Experimental", "实验性"));
+        Section(L.T("AI fix", "AI 纠错"), L.T("Experimental", "实验性"));
+        Note(L.T("Let an AI model suggest fixes when your code doesn't compile.", "代码编译不过时，让 AI 模型帮你找出问题并修改。"));
         Toggle(L.T("Enable AI fix", "启用 AI 纠错"), L.T("Adds an \"AI fix\" button to the status bar when there are errors.", "有报错时，在底部状态栏出现“AI 纠错”按钮。"), settings.AiFixEnabled, v => settings.AiFixEnabled = v);
-        Section(L.T("Connection (OpenAI-compatible)", "连接（OpenAI 协议）"));
         var url = Text2(L.T("API address", "接口地址"), settings.AiBaseUrl, "https://api.openai.com/v1", v => settings.AiBaseUrl = v.Length > 0 ? v : "https://api.openai.com/v1", false);
         var key = Text2(L.T("API key", "API Key"), settings.AiKey, "sk-...", v => settings.AiKey = v, false, true);
         var model = Text2(L.T("Model", "模型"), settings.AiModel, "gpt-4o-mini", v => settings.AiModel = v.Length > 0 ? v : "gpt-4o-mini", false);
@@ -238,7 +239,7 @@ internal sealed class SettingsDialog : DarkDialog
 
         // ---- Appearance
         Page("look", "palette", L.T("Appearance", "外观"), L.T("Theme, animation and language.", "主题、动画和语言。"));
-        Choice(L.T("Theme", "主题"), new[] { L.T("Follow Windows", "跟随系统"), L.T("Light (70s retro)", "亮色（70s 复古）"), L.T("Dark (classic)", "暗色（经典）") },
+        Choice(L.T("Theme", "主题"), new[] { L.T("Follow Windows", "跟随系统"), L.T("Light", "亮色"), L.T("Dark", "暗色") },
             new[] { "auto", "light", "dark" }, settings.Theme, v => settings.Theme = v);
         Toggle(L.T("Rich animations", "复杂动画"), L.T("Ripples, gliding caret, particle bursts, splash screen and staggered entrances.", "点击涟漪、光标滑动、粒子迸发、启动画面、卡片依次出现等效果。"), settings.Animations, v => settings.Animations = v);
         Choice(L.T("Language (restart to apply)", "语言（重启后生效）"), new[] { L.T("Follow Windows", "跟随系统"), "中文", "English" },
@@ -260,8 +261,7 @@ internal sealed class SettingsDialog : DarkDialog
         nav.Add("editor", "format", L.T("Editor", "编辑器"));
         nav.Add("files", "folder", L.T("Files", "文件"));
         nav.Add("compiler", "build", L.T("Compiler", "编译器"));
-        nav.Add("learn", "check", L.T("Learning aids", "学习辅助"));
-        nav.Add("ai", "spark", L.T("AI fix", "AI 纠错"), L.T("Beta", "实验"));
+        nav.Add("assist", "spark", L.T("Easy help", "简易辅助"));
         nav.Add("look", "palette", L.T("Appearance", "外观"));
         nav.Add("term", "term", L.T("Terminal", "终端"));
         nav.Add("about", "update", L.T("Updates", "更新与关于"));
@@ -303,10 +303,20 @@ internal sealed class SettingsDialog : DarkDialog
     private int RowWidth { get { return body.ClientSize.Width - Ui.D(56); } }
     private int Pad { get { return Ui.D(28); } }
 
-    private void Section(string title)
+    private void Section(string title, string badge = null)
     {
         y += Ui.D(10);
-        body.Controls.Add(new Label { Text = title.ToUpperInvariant(), Location = new Point(Pad, y), Size = new Size(RowWidth, Ui.D(22)), ForeColor = Theme.Orange, Font = Theme.UiSemi, BackColor = Theme.Panel });
+        string shown = title.ToUpperInvariant();
+        int tw = TextRenderer.MeasureText(shown, Theme.UiSemi, Size.Empty, TextFormatFlags.NoPadding).Width;
+        body.Controls.Add(new Label { Text = shown, Location = new Point(Pad, y), Size = new Size(badge != null ? tw + Ui.D(6) : RowWidth, Ui.D(22)), ForeColor = Theme.Orange, Font = Theme.UiSemi, BackColor = Theme.Panel });
+        if (badge != null)
+        {
+            // an "experimental" tag next to the heading
+            int bw = TextRenderer.MeasureText(badge, Theme.UiSmall, Size.Empty, TextFormatFlags.NoPadding).Width + Ui.D(16);
+            var tag = new Label { Text = badge, Location = new Point(Pad + tw + Ui.D(12), y + Ui.D(2)), Size = new Size(bw, Ui.D(18)), TextAlign = ContentAlignment.MiddleCenter, ForeColor = Theme.Violet, BackColor = Theme.Raised, Font = Theme.UiSmall };
+            using (var path = Shapes.Round(new RectangleF(0, 0, bw, Ui.D(18)), Ui.D(9))) tag.Region = new Region(path);
+            body.Controls.Add(tag);
+        }
         y += Ui.D(30);
     }
 
